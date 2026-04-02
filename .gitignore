@@ -12,8 +12,23 @@ dist
 .bg-shell
 
 # ── GSD baseline (auto-generated) ──
-.gsd/*
-!.gsd/preferences.md
+.gsd/auto.lock
+.gsd/completed-units.json
+.gsd/completed-units*.json
+.gsd/state-manifest.json
+.gsd/STATE.md
+.gsd/metrics.json
+.gsd/activity/
+.gsd/runtime/
+.gsd/worktrees/
+.gsd/milestones/**/continue.md
+.gsd/milestones/**/*-CONTINUE.md
+.gsd/gsd.db*
+.gsd/journal
+.gsd/doctor-history.jsonl
+.gsd/event-log.jsonl
+.gsd/reports/
+
 Thumbs.db
 *.swp
 *.swo
