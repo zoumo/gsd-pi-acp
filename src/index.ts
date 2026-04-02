@@ -1,6 +1,7 @@
 import { AgentSideConnection, ndJsonStream } from '@agentclientprotocol/sdk'
 import { PiAcpAgent } from './acp/agent.js'
 import { getPiCommand, shouldUseShellForPiCommand } from './pi-rpc/command.js'
+import { debugLog } from './logger.js'
 // Terminal Auth entrypoint. The ACP client launches the agent with `--terminal-login`.
 if (process.argv.includes('--terminal-login')) {
   const { spawnSync } = await import('node:child_process')
@@ -49,12 +50,17 @@ const output = new ReadableStream<Uint8Array>({
 
 const stream = ndJsonStream(input, output)
 
-const agent = new AgentSideConnection(conn => new PiAcpAgent(conn), stream)
+let acpAgent: PiAcpAgent | null = null
+const agent = new AgentSideConnection(conn => {
+  acpAgent = new PiAcpAgent(conn)
+  return acpAgent
+}, stream)
 
 function shutdown() {
+  debugLog('shutdown')
   try {
     // Best-effort: dispose session subprocesses when the client disconnects.
-    ;(agent as any)?.agent?.dispose?.()
+    acpAgent?.dispose()
   } catch {
     // ignore
   }

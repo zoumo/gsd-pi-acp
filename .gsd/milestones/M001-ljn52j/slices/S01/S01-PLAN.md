@@ -8,11 +8,11 @@
   - Estimate: 30m
   - Files: src/logger.ts, src/acp/paths.ts
   - Verify: PI_ACP_DEBUG_LOG=1 PI_ACP_DEBUG_LOG_PATH=/tmp/pi-acp-test.log node -e "import('./src/logger.ts').then(m => m.debugLog('test'))" && cat /tmp/pi-acp-test.log | grep -q 'test'
-- [ ] **T02: Fix RPC timeout and readline cleanup in process.ts** — 1. Wrap `request()` return promise with `setTimeout` that rejects after `PI_ACP_RPC_TIMEOUT_MS` (default 30000). Use `settled` boolean guard to prevent double-resolve (timeout vs process exit). Clear timer in all resolution paths. 2. Store readline interface as class property `this.rl` (currently local const in constructor). Add `this.rl.close()` in `dispose()` method. 3. Import and call `debugLog()` on: spawn (params + pid), exit (code + signal), request send (command type), response receive (command type), timeout event.
+- [x] **T02: Added RPC request timeout with settled guard and debug logging for request send/timeout events** — 1. Wrap `request()` return promise with `setTimeout` that rejects after `PI_ACP_RPC_TIMEOUT_MS` (default 30000). Use `settled` boolean guard to prevent double-resolve (timeout vs process exit). Clear timer in all resolution paths. 2. Store readline interface as class property `this.rl` (currently local const in constructor). Add `this.rl.close()` in `dispose()` method. 3. Import and call `debugLog()` on: spawn (params + pid), exit (code + signal), request send (command type), response receive (command type), timeout event.
   - Estimate: 1h
   - Files: src/pi-rpc/process.ts, src/logger.ts
   - Verify: npm run typecheck && npm test
-- [ ] **T03: Fix shutdown in index.ts** — Replace `(agent as any)?.agent?.dispose?.()` with direct `PiAcpAgent` reference. Store the agent instance before passing to `AgentSideConnection`: `const acpAgent = new PiAcpAgent(conn); const agent = new AgentSideConnection(() => acpAgent, stream);`. In `shutdown()`, call `acpAgent.dispose()` directly without `as any` cast. Import and call `debugLog('shutdown')` in shutdown function.
+- [x] **T03: Replaced unsafe `as any` cast with direct PiAcpAgent reference and added shutdown debug logging** — Replace `(agent as any)?.agent?.dispose?.()` with direct `PiAcpAgent` reference. Store the agent instance before passing to `AgentSideConnection`: `const acpAgent = new PiAcpAgent(conn); const agent = new AgentSideConnection(() => acpAgent, stream);`. In `shutdown()`, call `acpAgent.dispose()` directly without `as any` cast. Import and call `debugLog('shutdown')` in shutdown function.
   - Estimate: 20m
   - Files: src/index.ts, src/acp/agent.ts, src/logger.ts
   - Verify: npm run typecheck (must pass with zero `as any` in shutdown path)

@@ -1,6 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as readline from 'node:readline'
 import { getPiCommand, shouldUseShellForPiCommand } from './command.js'
+import { debugLog } from '../logger.js'
+
+/** RPC timeout in milliseconds. configurable via PI_ACP_RPC_TIMEOUT_MS env var. */
+const RPC_TIMEOUT_MS = parseInt(process.env.PI_ACP_RPC_TIMEOUT_MS || '30000', 10)
 
 export class PiRpcSpawnError extends Error {
   /** Underlying spawn error code, e.g. ENOENT, EACCES */
@@ -73,6 +77,7 @@ type SpawnParams = {
 
 export class PiRpcProcess {
   private readonly child: ChildProcessWithoutNullStreams
+  private readonly rl: readline.Interface
   private readonly pending = new Map<string, { resolve: (v: PiRpcResponse) => void; reject: (e: unknown) => void }>()
   private eventHandlers: Array<(ev: PiRpcEvent) => void> = []
   private readonly preludeLines: string[] = []
@@ -80,8 +85,8 @@ export class PiRpcProcess {
   private constructor(child: ChildProcessWithoutNullStreams) {
     this.child = child
 
-    const rl = readline.createInterface({ input: child.stdout })
-    rl.on('line', line => {
+    this.rl = readline.createInterface({ input: child.stdout })
+    this.rl.on('line', line => {
       if (!line.trim()) return
       let msg: any
       try {
@@ -100,6 +105,7 @@ export class PiRpcProcess {
           const pending = this.pending.get(id)
           if (pending) {
             this.pending.delete(id)
+            debugLog(`response received: type=${msg.command ?? 'unknown'} id=${id}`)
             pending.resolve(msg as PiRpcResponse)
             return
           }
@@ -110,6 +116,7 @@ export class PiRpcProcess {
     })
 
     child.on('exit', (code, signal) => {
+      debugLog(`pi process exit: code=${code ?? 'null'} signal=${signal ?? 'null'}`)
       const err = new Error(`pi process exited (code=${code}, signal=${signal})`)
       for (const [, p] of this.pending) p.reject(err)
       this.pending.clear()
@@ -131,6 +138,8 @@ export class PiRpcProcess {
     // (e.g. MCP extensions, prompt templates for workflows).
     const args = ['--mode', 'rpc', '--no-themes']
     if (params.sessionPath) args.push('--session', params.sessionPath)
+
+    debugLog(`spawn: cmd=${cmd} args=${args.join(' ')} cwd=${params.cwd}`)
 
     const child = spawn(cmd, args, {
       cwd: params.cwd,
@@ -175,6 +184,8 @@ export class PiRpcProcess {
       throw new PiRpcSpawnError(`Could not start pi (command: ${cmd}).`, { code, cause: e })
     }
 
+    debugLog(`spawn success: pid=${child.pid ?? 'null'}`)
+
     child.stderr.on('data', () => {
       // leave stderr untouched; ACP clients may capture it.
     })
@@ -208,6 +219,13 @@ export class PiRpcProcess {
   }
 
   dispose(signal: NodeJS.Signals | number = 'SIGTERM'): void {
+    // Close readline to stop consuming stdout
+    try {
+      this.rl.close()
+    } catch {
+      // ignore
+    }
+
     if (this.child.killed) return
     try {
       this.child.kill(signal as any)
@@ -319,20 +337,44 @@ export class PiRpcProcess {
     const withId = { ...cmd, id }
 
     const line = JSON.stringify(withId) + '\n'
+    debugLog(`request send: type=${cmd.type} id=${id}`)
 
     return new Promise<PiRpcResponse>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      let settled = false
+      const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        this.pending.delete(id)
+        debugLog(`request timeout: type=${cmd.type} id=${id} duration=${RPC_TIMEOUT_MS}ms`)
+        reject(new Error(`RPC request timed out after ${RPC_TIMEOUT_MS}ms (type=${cmd.type}, id=${id})`))
+      }, RPC_TIMEOUT_MS)
+
+      const doResolve = (res: PiRpcResponse) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve(res)
+      }
+
+      const doReject = (err: unknown) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        reject(err)
+      }
+
+      this.pending.set(id, { resolve: doResolve, reject: doReject })
 
       try {
         this.child.stdin.write(line, err => {
           if (err) {
             this.pending.delete(id)
-            reject(err)
+            doReject(err)
           }
         })
       } catch (e) {
         this.pending.delete(id)
-        reject(e)
+        doReject(e)
       }
     })
   }

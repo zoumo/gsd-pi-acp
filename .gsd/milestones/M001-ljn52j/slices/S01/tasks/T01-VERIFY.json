@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M001-ljn52j/S01/T01",
+  "timestamp": 1775150364167,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PI_ACP_DEBUG_LOG=1 PI_ACP_DEBUG_LOG_PATH=/tmp/pi-acp-test.log node -e \"import('./src/logger.ts').then(m => m.debugLog('test'))\"",
+      "exitCode": 1,
+      "durationMs": 100,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}
