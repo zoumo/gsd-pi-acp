@@ -15,6 +15,21 @@ import { PiRpcProcess, PiRpcSpawnError, type PiRpcEvent } from '../pi-rpc/proces
 import { SessionStore } from './session-store.js'
 import { toolResultToText } from './translate/pi-tools.js'
 import { expandSlashCommand, type FileSlashCommand } from './slash-commands.js'
+import { debugLog } from '../logger.js'
+import type { BackendConfig } from '../backend/config.js'
+
+/** Maximum pending prompts in the turn queue. Override via PI_ACP_MAX_QUEUE_DEPTH env var. */
+function getMaxQueueDepth(): number {
+  return Number(process.env.PI_ACP_MAX_QUEUE_DEPTH) || 20
+}
+
+// Register unhandledRejection handler once at module load time to catch stray promise
+// rejections from emit() or conn.sessionUpdate() bugs. Not per-session to avoid listener leak.
+process.on('unhandledRejection', (reason) => {
+  const msg = 'unhandledRejection: ' + String(reason)
+  debugLog(msg)
+  try { process.stderr.write(`[gsd-pi-acp] ${msg}\n`) } catch {}
+})
 
 type SessionCreateParams = {
   cwd: string
@@ -22,6 +37,7 @@ type SessionCreateParams = {
   conn: AgentSideConnection
   fileCommands?: import('./slash-commands.js').FileSlashCommand[]
   piCommand?: string
+  config: BackendConfig
 }
 
 export type StopReason = 'end_turn' | 'cancelled' | 'error'
@@ -64,7 +80,11 @@ function toToolCallLocations(args: unknown, cwd: string, line?: number): ToolCal
 
 export class SessionManager {
   private sessions = new Map<string, PiAcpSession>()
-  private readonly store = new SessionStore()
+  private readonly store: SessionStore
+
+  constructor(store?: SessionStore) {
+    this.store = store ?? new SessionStore()
+  }
 
   /** Dispose all sessions and their underlying pi subprocesses. */
   disposeAll(): void {
@@ -106,7 +126,8 @@ export class SessionManager {
     try {
       proc = await PiRpcProcess.spawn({
         cwd: params.cwd,
-        piCommand: params.piCommand
+        piCommand: params.piCommand,
+        config: params.config
       })
     } catch (e) {
       if (e instanceof PiRpcSpawnError) {
@@ -249,12 +270,22 @@ export class PiAcpSession {
     // pi RPC mode disables slash command expansion, so we do it here.
     const expandedMessage = expandSlashCommand(message, this.fileCommands)
 
+    // Quick gate: reject before entering Promise constructor if queue is full.
+    if (this.pendingTurn) {
+      const maxQueueDepth = getMaxQueueDepth()
+      if (this.turnQueue.length >= maxQueueDepth) {
+        debugLog(`queue overflow: rejected prompt (queue depth ${this.turnQueue.length}, max ${maxQueueDepth})`)
+        throw RequestError.invalidParams(`Turn queue full (max ${maxQueueDepth} pending prompts). Please wait for current turn to complete.`)
+      }
+    }
+
     const turnPromise = new Promise<StopReason>((resolve, reject) => {
       const queued: QueuedTurn = { message: expandedMessage, images, resolve, reject }
 
       // If a turn is already running, enqueue.
       if (this.pendingTurn) {
         this.turnQueue.push(queued)
+        debugLog(`turn queued: position ${this.turnQueue.length}`)
 
         // Best-effort: notify client that a prompt was queued.
         // This doesn't work in Zed yet, needs to be revisited
@@ -277,6 +308,7 @@ export class PiAcpSession {
       }
 
       // No turn is running; start immediately.
+      debugLog('turn start: queue depth 0')
       this.startTurn(queued)
     })
 
@@ -631,6 +663,13 @@ export class PiAcpSession {
           this.pendingTurn?.resolve(reason)
           this.pendingTurn = null
           this.inAgentLoop = false
+          debugLog('turn complete: reason=' + reason)
+
+          // Clear any remaining edit snapshots (they were never consumed).
+          if (this.editSnapshots.size > 0) {
+            debugLog('editSnapshots cleared: count=' + this.editSnapshots.size)
+            this.editSnapshots.clear()
+          }
 
           // Start next queued prompt, if any.
           const next = this.turnQueue.shift()
@@ -647,6 +686,12 @@ export class PiAcpSession {
             })
           }
         })
+        break
+      }
+
+      case 'process_exit': {
+        debugLog('process_exit event: clearing editSnapshots')
+        this.editSnapshots.clear()
         break
       }
 

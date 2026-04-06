@@ -1,10 +1,15 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as readline from 'node:readline'
 import { getPiCommand, shouldUseShellForPiCommand } from './command.js'
+import type { BackendConfig } from '../backend/config.js'
+import { getSpawnArgs } from '../backend/config.js'
 import { debugLog } from '../logger.js'
 
-/** RPC timeout in milliseconds. configurable via PI_ACP_RPC_TIMEOUT_MS env var. */
-const RPC_TIMEOUT_MS = parseInt(process.env.PI_ACP_RPC_TIMEOUT_MS || '30000', 10)
+/** RPC timeout in milliseconds. Configurable via PI_ACP_RPC_TIMEOUT_MS env var. */
+function getRpcTimeoutMs(): number {
+  const v = parseInt(process.env.PI_ACP_RPC_TIMEOUT_MS || '30000', 10)
+  return Number.isFinite(v) && v > 0 ? v : 30000
+}
 
 export class PiRpcSpawnError extends Error {
   /** Underlying spawn error code, e.g. ENOENT, EACCES */
@@ -73,6 +78,8 @@ type SpawnParams = {
   piCommand?: string
   /** If set, pi will persist the session to this exact file (via `--session <path>`). */
   sessionPath?: string
+  /** Backend configuration (from BackendConfig). Required for proper spawn args. */
+  config: BackendConfig
 }
 
 export class PiRpcProcess {
@@ -117,6 +124,8 @@ export class PiRpcProcess {
 
     child.on('exit', (code, signal) => {
       debugLog(`pi process exit: code=${code ?? 'null'} signal=${signal ?? 'null'}`)
+      // Emit process_exit event so Session can clean up editSnapshots.
+      for (const h of this.eventHandlers) h({ type: 'process_exit', code, signal })
       const err = new Error(`pi process exited (code=${code}, signal=${signal})`)
       for (const [, p] of this.pending) p.reject(err)
       this.pending.clear()
@@ -128,16 +137,17 @@ export class PiRpcProcess {
     })
   }
 
+  /** Create a PiRpcProcess for testing with a mock child process. Does not perform handshake. */
+  static createForTest(child: ChildProcessWithoutNullStreams): PiRpcProcess {
+    return new PiRpcProcess(child)
+  }
+
   static async spawn(params: SpawnParams): Promise<PiRpcProcess> {
     // On Windows, npm commonly creates pi.cmd / pi.bat launcher scripts.
     const cmd = getPiCommand(params.piCommand)
 
-    // Speed/robustness for ACP:
-    // - themes are irrelevant in rpc mode and can be noisy/slow to load.
-    // Keep extensions + prompt templates enabled because ACP users may rely on them
-    // (e.g. MCP extensions, prompt templates for workflows).
-    const args = ['--mode', 'rpc', '--no-themes']
-    if (params.sessionPath) args.push('--session', params.sessionPath)
+    // Use BackendConfig's spawnArgs (gsd doesn't support --no-themes)
+    const args = getSpawnArgs(params.config, params.sessionPath)
 
     debugLog(`spawn: cmd=${cmd} args=${args.join(' ')} cwd=${params.cwd}`)
 
@@ -244,91 +254,74 @@ export class PiRpcProcess {
   }
 
   async prompt(message: string, images: unknown[] = []): Promise<void> {
-    const res = await this.request({ type: 'prompt', message, images })
-    if (!res.success) throw new Error(`pi prompt failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'prompt', message, images })
   }
 
   async abort(): Promise<void> {
-    const res = await this.request({ type: 'abort' })
-    if (!res.success) throw new Error(`pi abort failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'abort' })
   }
 
   async getState(): Promise<unknown> {
-    const res = await this.request({ type: 'get_state' })
-    if (!res.success) throw new Error(`pi get_state failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'get_state' })
   }
 
   async getAvailableModels(): Promise<unknown> {
-    const res = await this.request({ type: 'get_available_models' })
-    if (!res.success) throw new Error(`pi get_available_models failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'get_available_models' })
   }
 
   async setModel(provider: string, modelId: string): Promise<unknown> {
-    const res = await this.request({ type: 'set_model', provider, modelId })
-    if (!res.success) throw new Error(`pi set_model failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'set_model', provider, modelId })
   }
 
   async setThinkingLevel(level: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'): Promise<void> {
-    const res = await this.request({ type: 'set_thinking_level', level })
-    if (!res.success) throw new Error(`pi set_thinking_level failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'set_thinking_level', level })
   }
 
   async setFollowUpMode(mode: 'all' | 'one-at-a-time'): Promise<void> {
-    const res = await this.request({ type: 'set_follow_up_mode', mode })
-    if (!res.success) throw new Error(`pi set_follow_up_mode failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'set_follow_up_mode', mode })
   }
 
   async setSteeringMode(mode: 'all' | 'one-at-a-time'): Promise<void> {
-    const res = await this.request({ type: 'set_steering_mode', mode })
-    if (!res.success) throw new Error(`pi set_steering_mode failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'set_steering_mode', mode })
   }
 
   async compact(customInstructions?: string): Promise<unknown> {
-    const res = await this.request({ type: 'compact', customInstructions })
-    if (!res.success) throw new Error(`pi compact failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'compact', customInstructions })
   }
 
   async setAutoCompaction(enabled: boolean): Promise<void> {
-    const res = await this.request({ type: 'set_auto_compaction', enabled })
-    if (!res.success) throw new Error(`pi set_auto_compaction failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'set_auto_compaction', enabled })
   }
 
   async getSessionStats(): Promise<unknown> {
-    const res = await this.request({ type: 'get_session_stats' })
-    if (!res.success) throw new Error(`pi get_session_stats failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'get_session_stats' })
   }
 
   async setSessionName(name: string): Promise<void> {
-    const res = await this.request({ type: 'set_session_name', name })
-    if (!res.success) throw new Error(`pi set_session_name failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'set_session_name', name })
   }
 
   async exportHtml(outputPath?: string): Promise<{ path: string }> {
-    const res = await this.request({ type: 'export_html', outputPath })
-    if (!res.success) throw new Error(`pi export_html failed: ${res.error ?? JSON.stringify(res.data)}`)
-    const data: any = res.data
+    const data = await this.rpc({ type: 'export_html', outputPath }) as Record<string, unknown> | undefined
     return { path: String(data?.path ?? '') }
   }
 
   async switchSession(sessionPath: string): Promise<void> {
-    const res = await this.request({ type: 'switch_session', sessionPath })
-    if (!res.success) throw new Error(`pi switch_session failed: ${res.error ?? JSON.stringify(res.data)}`)
+    await this.rpc({ type: 'switch_session', sessionPath })
   }
 
   async getMessages(): Promise<unknown> {
-    const res = await this.request({ type: 'get_messages' })
-    if (!res.success) throw new Error(`pi get_messages failed: ${res.error ?? JSON.stringify(res.data)}`)
-    return res.data
+    return this.rpc({ type: 'get_messages' })
   }
 
   async getCommands(): Promise<unknown> {
-    const res = await this.request({ type: 'get_commands' })
-    if (!res.success) throw new Error(`pi get_commands failed: ${res.error ?? JSON.stringify(res.data)}`)
+    return this.rpc({ type: 'get_commands' })
+  }
+
+  /** Send an RPC command and throw on failure. Returns `res.data` on success. */
+  private async rpc(cmd: PiRpcCommand): Promise<unknown> {
+    const res = await this.request(cmd)
+    if (!res.success) throw new Error(`pi ${cmd.type} failed: ${res.error ?? JSON.stringify(res.data)}`)
     return res.data
   }
 
@@ -341,13 +334,14 @@ export class PiRpcProcess {
 
     return new Promise<PiRpcResponse>((resolve, reject) => {
       let settled = false
+      const timeoutMs = getRpcTimeoutMs()
       const timer = setTimeout(() => {
         if (settled) return
         settled = true
         this.pending.delete(id)
-        debugLog(`request timeout: type=${cmd.type} id=${id} duration=${RPC_TIMEOUT_MS}ms`)
-        reject(new Error(`RPC request timed out after ${RPC_TIMEOUT_MS}ms (type=${cmd.type}, id=${id})`))
-      }, RPC_TIMEOUT_MS)
+        debugLog(`request timeout: type=${cmd.type} id=${id} duration=${timeoutMs}ms`)
+        reject(new Error(`RPC request timed out after ${timeoutMs}ms (type=${cmd.type}, id=${id})`))
+      }, timeoutMs)
 
       const doResolve = (res: PiRpcResponse) => {
         if (settled) return

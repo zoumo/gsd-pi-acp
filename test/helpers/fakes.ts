@@ -49,6 +49,8 @@ export class FakePiRpcProcess {
   async getMessages(): Promise<any> {
     return { messages: [] }
   }
+
+  dispose(): void {}
 }
 
 export function asAgentConn(conn: FakeAgentSideConnection): AgentSideConnection {

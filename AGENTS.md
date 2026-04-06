@@ -1,74 +1,91 @@
-# pi-acp (ACP adapter for pi-coding-agent)
+# gsd-pi-acp (ACP adapter for gsd/pi coding agents)
 
-This repository implements an **Agent Client Protocol (ACP)** adapter for **pi** (`@mariozechner/pi-coding-agent`) without modifying pi.
+ACP adapter that bridges **ACP JSON-RPC 2.0 over stdio** (for clients like Zed) to **gsd/pi --mode rpc** subprocesses via newline-delimited JSON.
 
-- ACP side: **JSON-RPC 2.0 over stdio** using `@agentclientprotocol/sdk` (TypeScript)
-- Pi side: spawn `pi --mode rpc` and communicate via **newline-delimited JSON** over stdio
+## Architecture
 
-## Architecture (MVP)
-
-### 1 ACP session ↔ 1 pi subprocess
-
-Pi RPC mode is effectively single-session, so the adapter maps:
-
-- `session/new` → spawn a dedicated `pi --mode rpc` process
-- `session/prompt` → send `{type:"prompt"}` to that process and stream events back as `session/update`
-- `session/cancel` → send `{type:"abort"}`
-
-### ACP server wiring (modeled after opencode)
-
-Use `@agentclientprotocol/sdk`:
-
-- `ndJsonStream(input, output)` to speak ACP over stdio
-- `new AgentSideConnection((conn) => new PiAcpAgent(conn, config), stream)`
-
-## Implementation constraints / decisions
-
-- Do **not** implement ACP client-side FS/terminal delegation in MVP. Pi already reads/writes and executes locally.
-- Ignore `mcpServers` for MVP (accept in params, store in session state).
-- Stream all pi assistant output as ACP `agent_message_chunk` initially.
-- Tool events: map pi tool execution events to ACP `tool_call` / `tool_call_update` (as text content).
-
-## Dev workflow (to be filled once scaffold exists)
-
-- Install deps: `npm install`
-- Run in dev: `npm run dev`
-- Build: `npm run build`
-- Smoke test (stdio): `npm run smoke`
-- Lint: `npm run lint`
-- Test: `npm run test`
-
-## Manual testing notes
-
-Once the adapter runs, it should behave like an ACP agent on stdio.
-
-Quick sanity test (example):
-
-```bashN
-# Send initialize request via stdin (exact fields depend on ACP SDK version)
-# echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}' | node dist/index.js
+```
+src/
+├── index.ts                    # Entry: stdio transport, signal handling, graceful shutdown
+├── logger.ts                   # Fire-and-forget debug logger (PI_ACP_DEBUG_LOG)
+├── backend/config.ts           # Backend detection (gsd-first, pi fallback, or explicit)
+├── acp/
+│   ├── agent.ts                # ACP protocol handler (initialize, newSession, prompt, etc.)
+│   ├── session.ts              # Session lifecycle + event translation + turn queue
+│   ├── session-lifecycle.ts    # Session start/stop orchestration
+│   ├── session-store.ts        # JSON file persistence
+│   ├── paths.ts                # Directory resolution (backend-aware)
+│   ├── pi-sessions.ts          # Filesystem session scanning
+│   ├── pi-settings.ts          # Config merge (global + project settings)
+│   ├── pi-commands.ts          # get_commands -> ACP tool conversion
+│   ├── slash-commands.ts       # Slash command file template loading
+│   ├── slash-command-dispatcher.ts  # Slash command expansion
+│   ├── builtin-commands.ts     # Built-in command definitions
+│   ├── startup-info.ts         # Agent startup metadata
+│   ├── model-utils.ts          # Model selection helpers
+│   ├── pkg-utils.ts            # Package.json utilities
+│   ├── auth.ts / auth-required.ts  # Authentication flow
+│   └── translate/              # Message/tool/prompt translation layer
+└── pi-rpc/
+    ├── process.ts              # Subprocess management + NDJSON RPC (with timeout, dispose)
+    ├── command.ts              # Executable resolution (gsd/pi, platform-aware)
+    └── schemas.ts              # Zod schemas for RPC response validation
 ```
 
-For real validation, test with an ACP client (e.g. Zed external agent).
+### Key design decisions
+
+- **1 ACP session = 1 subprocess**: pi RPC mode is single-session
+- **Dual backend**: auto-detects gsd, falls back to pi, or explicit via `PI_ACP_PI_COMMAND`
+- **RPC timeout**: 30s default, configurable via `PI_ACP_RPC_TIMEOUT_MS`
+- **Turn queue**: bounded depth (default 3), prevents unbounded memory growth
+- **No ACP client-side FS/terminal delegation**: pi already reads/writes locally
+
+## Dev workflow
+
+```bash
+npm install          # Install deps
+npm run build        # Build
+npm run dev          # Dev mode
+npm run test         # Run tests
+npm run lint         # Lint
+```
 
 ## Coding guidelines
 
-- Keep ACP protocol handling in `src/acp/*`.
-- Keep pi RPC subprocess logic in `src/pi-rpc/*`.
-- Prefer small translation functions (pi event → ACP session/update) with unit tests.
-- Be strict about streaming and process cleanup (handle exit, drain stdout/stderr, timeouts).
-- Avoid producing unnecessary comments! Use comments sparingly to explain non-obvious decisions, not to narrate code.
-- Avoid using `any` in TypeScript; prefer explicit types and interfaces. Only use `any` when absolutely necessary (e.g. for untyped external data).
+- Keep ACP protocol handling in `src/acp/`, RPC subprocess logic in `src/pi-rpc/`
+- Prefer small translation functions with unit tests
+- Be strict about streaming and process cleanup (handle exit, drain stdout/stderr, timeouts)
+- Avoid unnecessary comments; only explain non-obvious decisions
+- Avoid `any`; prefer explicit types. Only use `any` for untyped external data
+- **DO NOT** commit unless explicitly asked
 
-## Source control
+## Documentation conventions
 
-- **DO NOT** commit unless explicitly asked!
+### What goes where
+
+| Location | Content | Lifecycle |
+|----------|---------|-----------|
+| `docs/` | **Living references** — documents maintained alongside the code (e.g. ACP compliance matrix, architecture overview, dev guide) | Updated when code changes invalidate them |
+| `.gsd/` | **Project management** — roadmaps, plans, summaries, requirements, decisions | Managed by GSD workflow |
+| Code + git history | Implementation details, audit findings, code reviews | Permanent record |
+
+### Rules
+
+- `docs/` only contains **active, maintained** documents. If a doc will not be updated as the code evolves, it does not belong in `docs/`.
+- **Audit reports, code reviews, and one-off analysis** are ephemeral artifacts. Do not commit them to `docs/`. Their value is captured in the code changes they produced; the originals live in git history or `.gsd/` slice artifacts.
+- **Point-in-time snapshots** (architecture diagrams of old state, coverage reports, migration checklists) should be deleted once the work they describe is complete.
+- When a milestone completes, review `docs/` and remove anything that no longer reflects current code.
+- Prefer updating an existing doc over creating a new one.
+
+### Current docs
+
+- `docs/acp-compliance.md` — ACP protocol compliance matrix (methods, capabilities, gaps)
 
 ## Client information
 
-- Current ACP client is Zed
+- Primary ACP client: Zed editor
 
 ## References
 
-- Local ACP repo with protocol documentation and specs: `~/Dev/learning/agent-client-protocol`
-- Local Zed repo `~/Dev/learning/zed/zed`
+- Local ACP repo: `~/Dev/learning/agent-client-protocol`
+- Local Zed repo: `~/Dev/learning/zed/zed`

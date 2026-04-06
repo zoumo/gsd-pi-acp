@@ -55,7 +55,9 @@ test('PiAcpAgent: unstable_listSessions lists pi sessions and loadSession replay
   )
 
   const oldEnv = process.env.PI_CODING_AGENT_DIR
+  const oldPiCommand = process.env.PI_ACP_PI_COMMAND
   process.env.PI_CODING_AGENT_DIR = root
+  process.env.PI_ACP_PI_COMMAND = 'pi' // Force pi backend for this test
 
   try {
     const conn = new FakeAgentSideConnection()
@@ -110,5 +112,7 @@ test('PiAcpAgent: unstable_listSessions lists pi sessions and loadSession replay
   } finally {
     if (oldEnv === undefined) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = oldEnv
+    if (oldPiCommand === undefined) delete process.env.PI_ACP_PI_COMMAND
+    else process.env.PI_ACP_PI_COMMAND = oldPiCommand
   }
 })

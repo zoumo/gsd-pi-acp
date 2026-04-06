@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
+import type { BackendConfig } from '../backend/config.js'
 
 /**
  * File-based slash command (mirrors pi-coding-agent semantics).
@@ -91,11 +92,27 @@ function loadCommandsFromDir(dir: string, source: 'user' | 'project', subdir = '
 }
 
 /**
- * Load prompt templates from pi's prompt directories (formerly "commands").
- *  - user:    ~/.pi/agent/prompts/**\/*.md
- *  - project: <cwd>/.pi/prompts/**\/*.md
+ * Load prompt templates from backend's prompt directories.
+ * User prompts: promptsDir (backend-specific: ~/.gsd/prompts or ~/.pi/agent/prompts)
+ * Project prompts: cwd/.gsd/prompts or cwd/.pi/prompts (backend-specific)
  */
-export function loadSlashCommands(cwd: string): FileSlashCommand[] {
+export function loadSlashCommands(config: BackendConfig, cwd: string): FileSlashCommand[] {
+  const commands: FileSlashCommand[] = []
+
+  const userDir = config.promptsDir
+  const projectDir = resolve(cwd, config.name === 'gsd' ? '.gsd' : '.pi', 'prompts')
+
+  // Match pi ordering: user first, then project.
+  commands.push(...loadCommandsFromDir(userDir, 'user'))
+  commands.push(...loadCommandsFromDir(projectDir, 'project'))
+
+  return commands
+}
+
+/**
+ * Legacy function for backward compatibility (pi backend only).
+ */
+export function loadSlashCommandsLegacy(cwd: string): FileSlashCommand[] {
   const commands: FileSlashCommand[] = []
 
   const userDir = join(homedir(), '.pi', 'agent', 'prompts')

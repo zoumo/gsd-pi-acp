@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync, statSync, openSync, readSync, closeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { BackendConfig } from '../backend/config.js'
+import { resolveAgentDir } from '../backend/config.js'
 
 export type PiSessionListItem = {
   sessionId: string
@@ -13,14 +15,43 @@ export type PiSessionListItem = {
 const DEFAULT_TAIL_BYTES = 256 * 1024
 const DEFAULT_HEAD_BYTES = 64 * 1024
 
-function getPiAgentDir(): string {
-  // pi supports overriding config dir via PI_CODING_AGENT_DIR.
-  // See pi README.
-  return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), '.pi', 'agent')
+/**
+ * Compute cwd hash for gsd session directory.
+ * Format: --path-with-dashes-replace-by-dashes--
+ * Example: /Users/jim/code/myproject -> --Users-jim-code-myproject--
+ */
+function computeCwdHash(cwd: string): string {
+  // Remove leading slash and replace path separators with dashes
+  const normalized = cwd.replace(/^\//, '').replace(/\//g, '-')
+  return `--${normalized}--`
 }
 
-export function getPiSessionsDir(): string {
-  return join(getPiAgentDir(), 'sessions')
+/**
+ * Get the sessions directory for the backend.
+ * - pi: ~/.pi/agent/sessions (all sessions in one directory)
+ * - gsd: ~/.gsd/sessions/<cwd-hash>/ (cwd-scoped sessions)
+ */
+export function getSessionsDir(config: BackendConfig, cwd?: string): string {
+  const agentDir = resolveAgentDir(config)
+
+  if (config.name === 'gsd') {
+    // gsd uses cwd-scoped sessions
+    if (!cwd) {
+      throw new Error('cwd is required for gsd backend session listing')
+    }
+    const cwdHash = computeCwdHash(cwd)
+    return join(agentDir, 'sessions', cwdHash)
+  }
+
+  // pi uses a single sessions directory
+  return join(agentDir, 'sessions')
+}
+
+/**
+ * Legacy function for backward compatibility (pi backend only).
+ */
+export function getPiSessionsDirLegacy(): string {
+  return join(homedir(), '.pi', 'agent', 'sessions')
 }
 
 function walkJsonlFiles(dir: string, out: string[]) {
@@ -244,8 +275,8 @@ function pickFallbackTitleFromHead(path: string): string | null {
   return null
 }
 
-export function listPiSessions(): PiSessionListItem[] {
-  const sessionsDir = getPiSessionsDir()
+export function listPiSessions(config: BackendConfig, cwd?: string): PiSessionListItem[] {
+  const sessionsDir = getSessionsDir(config, cwd)
   const files: string[] = []
   walkJsonlFiles(sessionsDir, files)
 
@@ -305,8 +336,19 @@ export function listPiSessions(): PiSessionListItem[] {
   return items
 }
 
-export function findPiSessionFile(sessionId: string): string | null {
-  const all = listPiSessions()
+export function findPiSessionFile(config: BackendConfig, sessionId: string, cwd?: string): string | null {
+  const all = listPiSessions(config, cwd)
   const found = all.find(s => s.sessionId === sessionId)
   return found?.sessionFile ?? null
+}
+
+/**
+ * Legacy functions for backward compatibility (pi backend only).
+ */
+export function listPiSessionsLegacy(): PiSessionListItem[] {
+  return listPiSessions({ name: 'pi' } as any)
+}
+
+export function findPiSessionFileLegacy(sessionId: string): string | null {
+  return findPiSessionFile({ name: 'pi' } as any, sessionId)
 }

@@ -1,11 +1,18 @@
 import { AgentSideConnection, ndJsonStream } from '@agentclientprotocol/sdk'
 import { PiAcpAgent } from './acp/agent.js'
-import { getPiCommand, shouldUseShellForPiCommand } from './pi-rpc/command.js'
+import { shouldUseShellForPiCommand } from './pi-rpc/command.js'
+import { getBackendCommand } from './backend/config.js'
 import { debugLog } from './logger.js'
+
+// Backend detection at startup - log the detected backend for debugging
+const { command, backend, autoDetected } = getBackendCommand()
+debugLog(`startup: backend=${backend} command=${command} autoDetected=${autoDetected}`)
+
 // Terminal Auth entrypoint. The ACP client launches the agent with `--terminal-login`.
 if (process.argv.includes('--terminal-login')) {
   const { spawnSync } = await import('node:child_process')
-  const cmd = getPiCommand(process.env.PI_ACP_PI_COMMAND)
+  // Use the already-detected command from startup, or override if PI_ACP_PI_COMMAND is set
+  const cmd = process.env.PI_ACP_PI_COMMAND?.trim() || command
   const res = spawnSync(cmd, [], {
     stdio: 'inherit',
     env: process.env,
@@ -51,7 +58,7 @@ const output = new ReadableStream<Uint8Array>({
 const stream = ndJsonStream(input, output)
 
 let acpAgent: PiAcpAgent | null = null
-const agent = new AgentSideConnection(conn => {
+const _agent = new AgentSideConnection(conn => {
   acpAgent = new PiAcpAgent(conn)
   return acpAgent
 }, stream)

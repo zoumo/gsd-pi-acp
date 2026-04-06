@@ -1,15 +1,27 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
+import type { BackendConfig } from '../backend/config.js'
 
 /**
  * Storage owned by the ACP adapter.
  *
- * We intentionally keep this separate from pi's own ~/.pi/agent/* directory.
+ * Backend-specific: ~/.gsd/session-map.json for gsd, ~/.pi/pi-acp/session-map.json for pi.
+ */
+export function getSessionMapPath(config: BackendConfig): string {
+  return config.sessionMapPath
+}
+
+/**
+ * Legacy function for backward compatibility.
+ * Uses ~/.pi/pi-acp/session-map.json path.
  */
 export function getPiAcpDir(): string {
   return join(homedir(), '.pi', 'pi-acp')
 }
 
+/**
+ * Legacy function for backward compatibility.
+ */
 export function getPiAcpSessionMapPath(): string {
   return join(getPiAcpDir(), 'session-map.json')
 }
@@ -28,7 +40,7 @@ export function getGsdPiAcpDebugLogPath(): string {
 
   if (override) {
     // Validate override path is absolute and contains no path traversal
-    if (!isAbsolutePath(override)) {
+    if (!isAbsolute(override)) {
       throw new Error(`PI_ACP_DEBUG_LOG_PATH must be absolute: ${override}`)
     }
     if (containsPathTraversal(override)) {
@@ -39,13 +51,6 @@ export function getGsdPiAcpDebugLogPath(): string {
 
   // Default path: ~/.gsd/gsd-pi-acp/debug.log (homedir-derived)
   return join(homedir(), '.gsd', 'gsd-pi-acp', 'debug.log')
-}
-
-/**
- * Check if a path is absolute.
- */
-function isAbsolutePath(path: string): boolean {
-  return path.startsWith('/')
 }
 
 /**

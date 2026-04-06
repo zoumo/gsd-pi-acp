@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { BackendConfig } from '../backend/config.js'
+import { resolveAgentDir } from '../backend/config.js'
 
 function safeReadJson(path: string): any | null {
   try {
@@ -13,7 +15,18 @@ function safeReadJson(path: string): any | null {
   }
 }
 
-export function getPiAgentDir(): string {
+/**
+ * Get the agent directory for the backend.
+ * Uses BackendConfig's agentDirEnvVar if set, otherwise falls back to default agentDir.
+ */
+export function getPiAgentDir(config: BackendConfig): string {
+  return resolveAgentDir(config)
+}
+
+/**
+ * Legacy function for backward compatibility (pi backend only).
+ */
+export function getPiAgentDirLegacy(): string {
   // pi-mono uses ENV_AGENT_DIR = `${APP_NAME.toUpperCase()}_CODING_AGENT_DIR`.
   // Default APP_NAME is "pi".
   const envDir = process.env.PI_CODING_AGENT_DIR
@@ -25,9 +38,9 @@ export function getPiAgentDir(): string {
   return join(homedir(), '.pi', 'agent')
 }
 
-export function hasAnyPiAuthConfigured(): boolean {
+export function hasAnyPiAuthConfigured(config: BackendConfig): boolean {
   // 1) auth.json present and non-empty (api keys or oauth creds)
-  const agentDir = getPiAgentDir()
+  const agentDir = getPiAgentDir(config)
   const authPath = join(agentDir, 'auth.json')
   const auth = safeReadJson(authPath)
   if (auth && typeof auth === 'object' && Object.keys(auth).length > 0) return true
@@ -78,4 +91,11 @@ export function hasAnyPiAuthConfigured(): boolean {
   }
 
   return false
+}
+
+/**
+ * Legacy function for backward compatibility (pi backend only).
+ */
+export function hasAnyPiAuthConfiguredLegacy(): boolean {
+  return hasAnyPiAuthConfigured({ name: 'pi' } as any)
 }
