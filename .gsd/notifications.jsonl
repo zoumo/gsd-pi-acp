@@ -8,3 +8,10 @@
 {"id":"ae596ae4-89cf-42c7-b9c8-3e6c6d2b3a87","ts":"2026-04-07T17:13:21.195Z","severity":"info","message":"Verification gate: 1/1 checks passed","source":"notify","read":false}
 {"id":"1a7c09f3-74f9-4c34-91ee-932bbf4ecbc0","ts":"2026-04-07T17:13:21.201Z","severity":"warning","message":"Post-execution checks passed with warnings","source":"notify","read":false}
 {"id":"57c1452d-95c0-4009-bdf1-201b56130332","ts":"2026-04-07T17:13:22.601Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"c3bfe53a-ca02-43ad-85c3-8d8b202c6a92","ts":"2026-04-07T17:19:44.255Z","severity":"info","message":"Committed: feat: Wrapped post-spawn section in agent.ts newSession() with try/catc…","source":"notify","read":false}
+{"id":"2f12477b-39c0-4f3a-a1be-47f8da0de776","ts":"2026-04-07T17:19:44.286Z","severity":"warning","message":"[safety] file-change: test/component/agent-post-spawn-cleanup.test.ts — Modified but not in task plan's expected output","source":"workflow-logger","read":false}
+{"id":"fffcfd25-0f82-46d5-8adf-e11906a33fb0","ts":"2026-04-07T17:19:44.286Z","severity":"warning","message":"[safety] file-change: test/unit/new-session-auth-required-when-no-models.test.ts — Modified but not in task plan's expected output","source":"workflow-logger","read":false}
+{"id":"35175632-c52b-4b81-837e-acd847d1c916","ts":"2026-04-07T17:19:44.286Z","severity":"warning","message":"Safety: 2 unexpected file change(s) outside task plan","source":"notify","read":false}
+{"id":"4ec898b8-0988-42bb-92f0-57c474cdd4cc","ts":"2026-04-07T17:19:48.959Z","severity":"info","message":"Verification gate: 1/1 checks passed","source":"notify","read":false}
+{"id":"53ed6199-d3b7-4b80-8d50-c2a0e5766d75","ts":"2026-04-07T17:19:48.967Z","severity":"warning","message":"Post-execution checks passed with warnings","source":"notify","read":false}
+{"id":"1db5b7f9-1ee9-4384-b342-bab352099f7c","ts":"2026-04-07T17:19:50.396Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}

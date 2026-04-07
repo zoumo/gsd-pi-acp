@@ -18,7 +18,7 @@
   - Estimate: 15min
   - Files: src/acp/agent.ts, test/component/session-post-spawn-cleanup.test.ts
   - Verify: npm test
-- [ ] **T03: Fix exit handler exception leaking pending promises (#5)** — 1. In process.ts exit handler: wrap event handler iteration in try/catch so handler exceptions don't prevent pending.reject()
+- [x] **T03: Wrapped exit/error handler event iteration in try/catch so throwing handlers don't prevent pending promise rejection (#5)** — 1. In process.ts exit handler: wrap event handler iteration in try/catch so handler exceptions don't prevent pending.reject()
 2. Same for error handler
 3. Add test verifying a throwing event handler doesn't prevent pending promise rejection
   - Estimate: 15min

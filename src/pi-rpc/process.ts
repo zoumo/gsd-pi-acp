@@ -220,14 +220,30 @@ export class PiRpcProcess {
     child.on('exit', (code, signal) => {
       debugLog(`pi process exit: code=${code ?? 'null'} signal=${signal ?? 'null'}`)
       // Emit process_exit event so Session can clean up editSnapshots.
-      for (const h of this.eventHandlers) h({ type: 'process_exit', code, signal })
+      // Wrap each handler in try/catch so a throwing handler doesn't prevent
+      // pending promise rejection (#5).
+      for (const h of this.eventHandlers) {
+        try {
+          h({ type: 'process_exit', code, signal })
+        } catch {
+          // swallow — handler exceptions must not block pending rejection
+        }
+      }
       const err = new Error(`pi process exited (code=${code}, signal=${signal})`)
       for (const [, p] of this.pending) p.reject(err)
       this.pending.clear()
     })
 
     child.on('error', err => {
-      for (const [, p] of this.pending) p.reject(err)
+      // Wrap each rejection in try/catch so one failing rejection doesn't
+      // prevent the remaining pending promises from being settled (#5).
+      for (const [, p] of this.pending) {
+        try {
+          p.reject(err)
+        } catch {
+          // swallow
+        }
+      }
       this.pending.clear()
     })
   }

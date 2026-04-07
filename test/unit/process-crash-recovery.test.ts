@@ -156,4 +156,72 @@ describe('PiRpcProcess crash recovery (exit handler)', () => {
       'Should be rejected with exit error, not late response'
     )
   })
+
+  it('rejects pending promises even when an event handler throws on exit (#5)', async () => {
+    const proc = PiRpcProcess.createForTest(fakeChild)
+
+    // Register a handler that always throws
+    proc.onEvent(() => {
+      throw new Error('handler kaboom')
+    })
+
+    // Create pending request
+    const requestPromise = proc.getState().catch(err => err)
+
+    // Simulate exit — the throwing handler must not prevent pending rejection
+    fakeChild.simulateExit(1, null)
+
+    const error = await requestPromise
+    assert.ok(error instanceof Error, 'Pending request should still be rejected')
+    assert.ok(
+      error.message.includes('pi process exited'),
+      'Error should be the exit error, not the handler exception'
+    )
+  })
+
+  it('rejects pending promises even when an event handler throws on error (#5)', async () => {
+    const proc = PiRpcProcess.createForTest(fakeChild)
+
+    // Register a handler that always throws
+    proc.onEvent(() => {
+      throw new Error('handler kaboom')
+    })
+
+    // Create pending request
+    const requestPromise = proc.getState().catch(err => err)
+
+    // Simulate error — the throwing handler must not prevent pending rejection
+    fakeChild.simulateError(new Error('spawn ENOENT'))
+
+    const error = await requestPromise
+    assert.ok(error instanceof Error, 'Pending request should still be rejected')
+    assert.ok(
+      error.message.includes('spawn ENOENT'),
+      'Error should be the original spawn error'
+    )
+  })
+
+  it('calls all event handlers even when an earlier one throws on exit (#5)', async () => {
+    const proc = PiRpcProcess.createForTest(fakeChild)
+
+    const handlerCalls: string[] = []
+
+    // First handler throws
+    proc.onEvent(() => {
+      handlerCalls.push('first')
+      throw new Error('first handler throws')
+    })
+
+    // Second handler should still be called
+    proc.onEvent(() => {
+      handlerCalls.push('second')
+    })
+
+    fakeChild.simulateExit(0, null)
+
+    // Both handlers should have been called despite the first one throwing
+    await new Promise(resolve => setTimeout(resolve, 10))
+    assert.deepStrictEqual(handlerCalls, ['first', 'second'],
+      'All event handlers should run even when one throws')
+  })
 })
