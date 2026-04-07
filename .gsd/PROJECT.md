@@ -10,14 +10,10 @@ ACP (Agent Client Protocol) adapter for `gsd` and `pi` coding agents. Runs as an
 
 - **Working**: Robust ACP adapter with dual backend support (gsd primary, pi fallback), subprocess timeout handling, clean shutdown, debug logging, CI gates, comprehensive test coverage
 - **Backend**: Defaults to `gsd` if available, falls back to `pi`, override via `PI_ACP_PI_COMMAND`
-- **Test coverage**: 90 tests passing (timeout 4, concurrent 4, dispose 6, crash-recovery 6, queue overflow 2, plus existing tests)
-- **M001-ljn52j Complete**: All 4 slices delivered
-  - S01: RPC timeout (30s), clean shutdown, queue limit (20), resource cleanup, debug logging
-  - S02: BackendConfig abstraction, auto-detection (gsd first), cwd-scoped sessions, package renamed
-  - S03: CI workflow (typecheck/lint/test), 20 new process.ts tests, FakeChildProcess helper
-  - S04: agent.ts 563 lines (58% reduction), Zod schemas, 6 modules extracted, SessionStore injection
-- **M002-bkli1x Complete**: Verification-only — confirmed all four P1-P3 code review findings (NaN guard, stderr fallback, node:path isAbsolute, cached mkdir) were already addressed in M001-ljn52j. No code changes needed.
-- **Deviation**: agent.ts at 563 lines vs <300 target (core ACP handlers remain, documented)
+- **Test coverage**: 90 tests passing
+- **M001-ljn52j Complete**: Core robustness — RPC timeout, clean shutdown, queue limit, BackendConfig abstraction, CI workflow, agent.ts decomposition, Zod schemas
+- **M002-bkli1x Complete**: Verification — confirmed all P1-P3 code review findings already addressed
+- **M003 Complete**: Code hygiene — removed 30+ dead exports/legacy functions (1086 lines), defined PiRpcEvent discriminated union (as-any: 51→12), converted pi-sessions.ts to async fs/promises
 
 ## Architecture
 
@@ -28,23 +24,23 @@ src/
   backend/
     config.ts       - BackendConfig abstraction (gsd vs pi paths, spawn args, auto-detection)
   acp/
-    agent.ts        - ACP protocol handler (563 lines, reduced from 1356)
-    session.ts      - Session manager, turn queue, event handling, queue depth limit
+    agent.ts        - ACP protocol handler (~430 lines)
+    session.ts      - Session manager, turn queue, event handling with typed PiRpcEvent
     session-store.ts - sessionId → sessionFile mapping (single instance injected)
-    paths.ts        - Backend-specific session map path, debug log path
-    translate/      - pi event → ACP conversion utilities
-    pi-sessions.ts  - List/load pi/gsd session files (cwd-scoped for gsd)
+    paths.ts        - Debug log path resolution
+    translate/      - pi event → ACP conversion (typed PiToolResult)
+    pi-sessions.ts  - List/load pi/gsd session files (async, cwd-scoped for gsd)
     pi-settings.ts  - Read backend settings (quietStartup, etc.)
     slash-commands.ts - File-based slash command loader (backend-specific prompts)
     builtin-commands.ts - Built-in slash commands (/steering, /name)
     pkg-utils.ts    - Package.json reading utilities
     model-utils.ts  - Thinking/model state helpers with Zod parsing
-    startup-info.ts - buildStartupInfo, buildUpdateNotice extracted
+    startup-info.ts - buildStartupInfo, buildUpdateNotice
     slash-command-dispatcher.ts - Slash command handling (/compact, /export, /session, etc.)
   pi-rpc/
-    process.ts      - Spawn pi/gsd subprocess, send commands, receive events, timeout handling
-    command.ts      - Resolve pi/gsd executable path (BackendConfig-based)
-    schemas.ts      - Zod schemas for RPC responses (getState, getAvailableModels, etc.)
+    process.ts      - Spawn subprocess, NDJSON RPC, typed PiRpcEvent discriminated union
+    command.ts      - Resolve pi/gsd executable path
+    schemas.ts      - Zod schemas for RPC responses
   pi-auth/
     status.ts       - Check if backend has auth configured
 ```
@@ -59,14 +55,15 @@ src/
 
 ## Test Strategy
 
-Node test runner with tsx for TypeScript execution. Unit tests use FakeChildProcess helper for subprocess mocking without real spawns (test/helpers/fake-child.ts). Component tests use FakePiRpcProcess. Comprehensive test coverage for process.ts critical paths: timeout (settled-guard pattern, 4 tests), concurrent request ID routing (4 tests), dispose cleanup (readline.close + child.kill, 6 tests), crash recovery (exit handler, 6 tests), queue overflow (2 tests). CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs run in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits without modifying constants.
+Node test runner with tsx. Unit tests use FakeChildProcess helper for subprocess mocking. CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits.
 
 ## Known Issues
 
-- Two pre-existing lint errors: unused BackendConfig import in session-lifecycle.ts, empty catch block in session.ts unhandledRejection handler
+- 12 remaining `as any` casts at Node.js/external API boundaries (low priority)
+- readFileSync used intentionally in session.ts event handler for edit diff snapshot ordering
 
 ## Dependencies
 
 - `@agentclientprotocol/sdk` - ACP types and server wiring
-- `zod` - Schema validation for RPC responses (getState, getAvailableModels, getMessages, getCommands, getSessionStats)
+- `zod` - Schema validation for RPC responses
 - `tsx`, `tsup`, `typescript`, `eslint` - Dev tooling
