@@ -2,3 +2,9 @@
 {"id":"fb700f8e-8f48-49b8-bba4-315315c21d62","ts":"2026-04-07T17:11:00.489Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
 {"id":"e0da7f1c-4ac4-49f9-ae73-6c129e8caff2","ts":"2026-04-07T17:11:02.246Z","severity":"info","message":"Pre-dispatch: pre-dispatch: created gsd snapshot after 77m of uncommitted changes","source":"notify","read":false}
 {"id":"61b63c6c-7e50-44bf-b91a-68303ee05433","ts":"2026-04-07T17:11:03.472Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"629f6f88-e60e-41e7-825e-acaf31ea92f1","ts":"2026-04-07T17:13:17.203Z","severity":"info","message":"Committed: feat: Added settleAllPending('error') call to process_exit handler so s…","source":"notify","read":false}
+{"id":"a8a0ab66-767b-433f-bc68-f895e4427eeb","ts":"2026-04-07T17:13:17.243Z","severity":"warning","message":"[safety] file-change: docs/code-review-2026-04-08.md — Modified but not in task plan's expected output","source":"workflow-logger","read":false}
+{"id":"7f2b528d-3c24-4b87-909b-d67603b954d9","ts":"2026-04-07T17:13:17.243Z","severity":"warning","message":"Safety: 1 unexpected file change(s) outside task plan","source":"notify","read":false}
+{"id":"ae596ae4-89cf-42c7-b9c8-3e6c6d2b3a87","ts":"2026-04-07T17:13:21.195Z","severity":"info","message":"Verification gate: 1/1 checks passed","source":"notify","read":false}
+{"id":"1a7c09f3-74f9-4c34-91ee-932bbf4ecbc0","ts":"2026-04-07T17:13:21.201Z","severity":"warning","message":"Post-execution checks passed with warnings","source":"notify","read":false}
+{"id":"57c1452d-95c0-4009-bdf1-201b56130332","ts":"2026-04-07T17:13:22.601Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}

@@ -131,93 +131,97 @@ export class PiAcpAgent implements ACPAgent {
       config: this.config
     })
 
-    // Fetch state + models once (parallel) to reduce startup latency.
-    let state: unknown = null
-    let availableModels: unknown = null
+    // Wrap the post-spawn section in try/catch so that any failure (e.g. getModelState,
+    // getThinkingState, auth gate) properly disposes the already-spawned subprocess via
+    // SessionManager.close() instead of leaking it. (Issue #3)
+    try {
+      // Fetch state + models once (parallel) to reduce startup latency.
+      let state: unknown = null
+      let availableModels: unknown = null
 
-    await Promise.all([
-      session.proc
-        .getState()
-        .then(s => {
-          state = s
-        })
-        .catch(() => {
-          state = null
-        }),
-      session.proc
-        .getAvailableModels()
-        .then(m => {
-          availableModels = m
-        })
-        .catch(() => {
-          availableModels = null
-        })
-    ])
+      await Promise.all([
+        session.proc
+          .getState()
+          .then(s => {
+            state = s
+          })
+          .catch(() => {
+            state = null
+          }),
+        session.proc
+          .getAvailableModels()
+          .then(m => {
+            availableModels = m
+          })
+          .catch(() => {
+            availableModels = null
+          })
+      ])
 
-    // Proactive auth gate: if pi has no models available, it's effectively unauthenticated.
-    const modelsData = parseAvailableModels(availableModels)
-    const rawModelsCount = modelsData?.models?.length ?? 0
+      // Proactive auth gate: if pi has no models available, it's effectively unauthenticated.
+      const modelsData = parseAvailableModels(availableModels)
+      const rawModelsCount = modelsData?.models?.length ?? 0
 
-    if (rawModelsCount === 0) {
-      try {
-        session.proc.dispose?.()
-      } catch {
-        // ignore
+      if (rawModelsCount === 0) {
+        throw RequestError.authRequired(
+          { authMethods: getAuthMethods() },
+          'Configure an API key or log in with an OAuth provider.'
+        )
       }
-      throw RequestError.authRequired(
-        { authMethods: getAuthMethods() },
-        'Configure an API key or log in with an OAuth provider.'
-      )
-    }
 
-    const models = await getModelState(session.proc, { state, availableModels })
-    const thinking = await getThinkingState(session.proc, { state })
+      const models = await getModelState(session.proc, { state, availableModels })
+      const thinking = await getThinkingState(session.proc, { state })
 
-    const quietStartup = getQuietStartup(this.config, params.cwd)
-    const updateNotice = buildUpdateNotice()
+      const quietStartup = getQuietStartup(this.config, params.cwd)
+      const updateNotice = buildUpdateNotice()
 
-    // If quietStartup is enabled, suppress the full "startup info" prelude, but still surface
-    // the "New version available" notice (if any) since it's high-signal and actionable.
-    const preludeText = quietStartup
-      ? updateNotice
-        ? updateNotice + '\n'
-        : ''
-      : buildStartupInfo({
-          cwd: params.cwd,
-          fileCommands,
-          updateNotice,
-          config: this.config
-        })
+      // If quietStartup is enabled, suppress the full "startup info" prelude, but still surface
+      // the "New version available" notice (if any) since it's high-signal and actionable.
+      const preludeText = quietStartup
+        ? updateNotice
+          ? updateNotice + '\n'
+          : ''
+        : buildStartupInfo({
+            cwd: params.cwd,
+            fileCommands,
+            updateNotice,
+            config: this.config
+          })
 
-    if (preludeText)
-      session.setStartupInfo(preludeText)
+      if (preludeText)
+        session.setStartupInfo(preludeText)
 
-      // Policy: within a single ACP connection (one client window), keep only one live pi subprocess.
-      // This avoids leaking subprocesses when clients start new sessions but don't explicitly close old ones.
-      // It does NOT affect other client windows because they run in separate agent processes.
-      // Note: Tests sometimes stub out `this.sessions`, so guard the call.
-    if (typeof this.sessions.closeAllExcept === 'function') {
-      this.sessions.closeAllExcept(session.sessionId)
-    }
+        // Policy: within a single ACP connection (one client window), keep only one live pi subprocess.
+        // This avoids leaking subprocesses when clients start new sessions but don't explicitly close old ones.
+        // It does NOT affect other client windows because they run in separate agent processes.
+        // Note: Tests sometimes stub out `this.sessions`, so guard the call.
+      if (typeof this.sessions.closeAllExcept === 'function') {
+        this.sessions.closeAllExcept(session.sessionId)
+      }
 
-    const response = {
-      sessionId: session.sessionId,
-      models,
-      modes: thinking,
-      _meta: {
-        piAcp: {
-          startupInfo: preludeText || null
+      const response = {
+        sessionId: session.sessionId,
+        models,
+        modes: thinking,
+        _meta: {
+          piAcp: {
+            startupInfo: preludeText || null
+          }
         }
       }
+
+      // Try to send it immediately after session/new returns; if the client ignores it,
+      // it will still be emitted as the first chunk of the first prompt.
+      if (preludeText) setTimeout(() => session.sendStartupInfoIfPending(), 0)
+
+      advertiseCommands(this.conn, session.sessionId, session.proc, fileCommands, { enableSkillCommands })
+
+      return response
+    } catch (err) {
+      // Dispose the subprocess and remove the session from the manager so it doesn't leak.
+      this.sessions.close(session.sessionId)
+      throw err
     }
-
-    // Try to send it immediately after session/new returns; if the client ignores it,
-    // it will still be emitted as the first chunk of the first prompt.
-    if (preludeText) setTimeout(() => session.sendStartupInfoIfPending(), 0)
-
-    advertiseCommands(this.conn, session.sessionId, session.proc, fileCommands, { enableSkillCommands })
-
-    return response
   }
 
   async authenticate(_params: AuthenticateRequest) {

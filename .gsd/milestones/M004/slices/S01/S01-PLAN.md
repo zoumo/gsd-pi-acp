@@ -11,7 +11,7 @@
   - Estimate: 20min
   - Files: src/acp/session.ts, test/component/session-process-crash.test.ts
   - Verify: npm test
-- [ ] **T02: Fix subprocess leak on post-spawn failure (#3)** — 1. In agent.ts newSession: wrap the post-spawn section (getModelState, getThinkingState, etc.) in try/catch
+- [x] **T02: Wrapped post-spawn section in agent.ts newSession() with try/catch so any failure after session creation disposes the subprocess via sessions.close() instead of leaking it** — 1. In agent.ts newSession: wrap the post-spawn section (getModelState, getThinkingState, etc.) in try/catch
 2. In catch: dispose the session via this.sessions.close(session.sessionId)
 3. Re-throw the error after cleanup
 4. Add test verifying cleanup on post-spawn failure
