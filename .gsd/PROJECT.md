@@ -10,17 +10,18 @@ ACP (Agent Client Protocol) adapter for `gsd` and `pi` coding agents. Runs as an
 
 - **Working**: Robust ACP adapter with dual backend support (gsd primary, pi fallback), subprocess timeout handling, clean shutdown, debug logging, CI gates, comprehensive test coverage
 - **Backend**: Defaults to `gsd` if available, falls back to `pi`, override via `PI_ACP_PI_COMMAND`
-- **Test coverage**: 101 tests passing
+- **Test coverage**: 124 tests passing
 - **M001-ljn52j Complete**: Core robustness — RPC timeout, clean shutdown, queue limit, BackendConfig abstraction, CI workflow, agent.ts decomposition, Zod schemas
 - **M002-bkli1x Complete**: Verification — confirmed all P1-P3 code review findings already addressed
 - **M003 Complete**: Code hygiene — removed 30+ dead exports/legacy functions (1086 lines), defined PiRpcEvent discriminated union (as-any: 51→12), converted pi-sessions.ts to async fs/promises
-- **M004 In Progress**: Code review remediation — S01 complete (hang/leak fixes: process crash settles prompts, post-spawn cleanup, defensive event handlers). S02-S04 remaining (correctness bugs, test repairs, operational improvements).
+- **M004 In Progress**: Code review remediation — S01 complete (hang/leak fixes), S02 complete (correctness bugs), S03 complete (false-confidence test repairs: merge-commands, stdout-destroyed, queue-overflow). S04 remaining (operational/performance improvements and cleanup).
 
 ## Architecture
 
 ```
 src/
   index.ts          - ACP entrypoint, spawns PiAcpAgent, backend detection
+  stdout-writer.ts  - Extracted stdout writer (side-effect-free, testable)
   logger.ts         - Fire-and-forget debug logger (opt-in PI_ACP_DEBUG_LOG)
   backend/
     config.ts       - BackendConfig abstraction (gsd vs pi paths, spawn args, auto-detection)
@@ -38,6 +39,7 @@ src/
     model-utils.ts  - Thinking/model state helpers with Zod parsing
     startup-info.ts - buildStartupInfo, buildUpdateNotice
     slash-command-dispatcher.ts - Slash command handling (/compact, /export, /session, etc.)
+    session-lifecycle.ts - Session lifecycle helpers (advertiseCommands, replayHistory)
   pi-rpc/
     process.ts      - Spawn subprocess, NDJSON RPC, typed PiRpcEvent discriminated union
     command.ts      - Resolve pi/gsd executable path
@@ -59,3 +61,5 @@ src/
 Node test runner with tsx. Unit tests use FakeChildProcess helper for subprocess mocking. CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits.
 
 ## Known Issues
+
+None.

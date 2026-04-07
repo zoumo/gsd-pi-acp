@@ -246,6 +246,10 @@ export class PiRpcProcess {
       }
       this.pending.clear()
     })
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      debugLog('subprocess stderr: ' + chunk.toString())
+    })
   }
 
   /** Create a PiRpcProcess for testing with a mock child process. Does not perform handshake. */
@@ -306,10 +310,6 @@ export class PiRpcProcess {
     }
 
     debugLog(`spawn success: pid=${child.pid ?? 'null'}`)
-
-    child.stderr.on('data', () => {
-      // leave stderr untouched; ACP clients may capture it.
-    })
 
     const proc = new PiRpcProcess(child)
 

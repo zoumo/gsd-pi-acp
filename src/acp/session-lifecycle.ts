@@ -7,6 +7,7 @@ import { builtinAvailableCommands, mergeCommands } from './builtin-commands.js'
 import { normalizePiAssistantText, normalizePiMessageText } from './translate/pi-messages.js'
 import { toolResultToText } from './translate/pi-tools.js'
 import { parseCommands, parseMessages } from '../pi-rpc/schemas.js'
+import { debugLog } from '../logger.js'
 
 /**
  * Advertise slash commands to the ACP client.
@@ -44,13 +45,17 @@ export function advertiseCommands(
         // Fall back to file-based prompt templates (legacy behavior).
       }
 
-      await conn.sessionUpdate({
-        sessionId,
-        update: {
-          sessionUpdate: 'available_commands_update',
-          availableCommands: mergeCommands(toAvailableCommands(fileCommands), builtinAvailableCommands())
-        }
-      })
+      try {
+        await conn.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: 'available_commands_update',
+            availableCommands: mergeCommands(toAvailableCommands(fileCommands), builtinAvailableCommands())
+          }
+        })
+      } catch (fallbackErr) {
+        debugLog(`fallback sessionUpdate failed: ${fallbackErr}`)
+      }
     })()
   }, 0)
 }

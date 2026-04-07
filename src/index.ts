@@ -3,6 +3,7 @@ import { PiAcpAgent } from './acp/agent.js'
 import { shouldUseShellForPiCommand } from './pi-rpc/command.js'
 import { getBackendCommand } from './backend/config.js'
 import { debugLog } from './logger.js'
+import { stdoutWrite } from './stdout-writer.js'
 
 // Backend detection at startup - log the detected backend for debugging
 const { command, backend, autoDetected } = getBackendCommand()
@@ -31,19 +32,7 @@ if (process.argv.includes('--terminal-login')) {
 
 const input = new WritableStream<Uint8Array>({
   write(chunk) {
-    return new Promise<void>(resolve => {
-      if ((process.stdout as any).destroyed || !process.stdout.writable) return resolve()
-
-      try {
-        process.stdout.write(chunk, err => {
-          void err
-          resolve()
-        })
-      } catch {
-        // Common: ERR_STREAM_DESTROYED ("Cannot call write after a stream was destroyed").
-        resolve()
-      }
-    })
+    return stdoutWrite(chunk)
   }
 })
 

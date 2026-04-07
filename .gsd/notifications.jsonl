@@ -26,3 +26,30 @@
 {"id":"55be8c13-dcba-4d4d-ae52-07a1fb5f56e4","ts":"2026-04-07T17:37:13.344Z","severity":"info","message":"Resume: applied 4 fix(es) to state.","source":"notify","read":false}
 {"id":"9ba52c1f-bb08-496a-a0ac-12b68282d057","ts":"2026-04-07T17:37:13.450Z","severity":"info","message":"Recovered 19 tool calls from paused session. Resuming with context.","source":"notify","read":false}
 {"id":"f07e053c-867e-4362-87c0-343d840b188b","ts":"2026-04-07T17:37:15.863Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"7ae65299-3f23-42f0-86c7-63800cd0a782","ts":"2026-04-07T17:39:28.294Z","severity":"info","message":"Committed: fix: Fixed getMaxQueueDepth() to reject negative/zero values and getBac…","source":"notify","read":false}
+{"id":"3df22d59-955e-48c4-8809-e45777df09d7","ts":"2026-04-07T17:39:32.134Z","severity":"info","message":"Verification gate: 1/1 checks passed","source":"notify","read":false}
+{"id":"5dce2cd5-32ae-4291-8abf-029be96bf271","ts":"2026-04-07T17:39:32.139Z","severity":"warning","message":"Post-execution checks passed with warnings","source":"notify","read":false}
+{"id":"0bfae377-1f16-464a-8855-edd2151b4a1c","ts":"2026-04-07T17:39:33.511Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"df4e2955-e3b8-4b48-854e-a8207b0b01c5","ts":"2026-04-07T17:40:20.006Z","severity":"warning","message":"Session creation timed out or was cancelled for execute-task M004/S02/T02. Will retry.","source":"notify","read":false}
+{"id":"2114c90a-3870-41d5-91eb-19546c045c20","ts":"2026-04-07T17:40:20.109Z","severity":"info","message":"Auto-mode paused (Escape). Type to interact, or /gsd auto to resume.","source":"notify","read":false}
+{"id":"e2989de3-4bcd-4e28-a8d0-cacd503e74a4","ts":"2026-04-07T17:40:20.117Z","severity":"info","message":"Auto-mode stopped — Session creation failed. Session: $16.95 · 54.56M tokens · 55 units","source":"notify","read":false}
+{"id":"fd543089-582b-479e-91c8-ac8932c55e88","ts":"2026-04-07T17:40:20.117Z","severity":"warning","message":"[state] DB unavailable — using filesystem state derivation (degraded mode)","source":"workflow-logger","read":false}
+{"id":"77fd2f3a-8551-454c-81ea-b0240db55f3e","ts":"2026-04-07T17:40:38.998Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"40bf5fdf-bd3a-4aa6-82ec-67da94ec655b","ts":"2026-04-07T17:40:39.000Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"2425df76-6603-4cf0-a66a-ddaeff4d391e","ts":"2026-04-07T17:40:40.880Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"0519ec50-cfec-4184-b589-1999e18acbb4","ts":"2026-04-07T17:46:47.895Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"8a71d25e-35bf-41e5-82af-99d88c2865d8","ts":"2026-04-07T17:46:47.897Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"d8f321ed-9988-4833-9070-7aa0c7a29270","ts":"2026-04-07T17:51:21.532Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"68e7722a-01b8-459d-b60d-a18b4f2bb272","ts":"2026-04-07T17:51:21.535Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"b3a9e4ee-72c0-40e8-b445-af7ae93e91ba","ts":"2026-04-07T17:56:47.179Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"d426938a-c080-48d3-9b75-e17041302f0b","ts":"2026-04-07T17:56:47.181Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"5ec677ce-9656-43d1-90c8-a702f5308baf","ts":"2026-04-07T17:58:29.154Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"a79b44eb-a53c-4bb2-8a8d-5f85b6091263","ts":"2026-04-07T17:58:29.156Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"7624c6b9-1248-4af8-9b07-961007634b0a","ts":"2026-04-07T17:58:31.905Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"a26fc4b5-2c03-4acc-a041-02fa1d5c0b00","ts":"2026-04-07T18:05:45.747Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"5fc7e7db-00fc-42c6-afa4-6933fe8f71cb","ts":"2026-04-07T18:05:45.749Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"65b4b40d-e86d-412c-890f-9c8672835264","ts":"2026-04-07T18:05:47.399Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}
+{"id":"a79782e5-bff1-4364-91fe-367f742494c9","ts":"2026-04-07T18:08:25.573Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"b10fdd2a-22ea-4fc5-848d-47502a169442","ts":"2026-04-07T18:08:25.576Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"9ac971cf-8936-48de-bce1-9930dbd421c0","ts":"2026-04-07T18:10:26.375Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"9fe94d44-ded4-4780-9bc6-1c109cb26563","ts":"2026-04-07T18:10:26.377Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}

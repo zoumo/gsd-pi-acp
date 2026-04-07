@@ -44,7 +44,7 @@ Both fixes are single-expression changes with dedicated unit tests.
   - Estimate: 30m
   - Files: src/acp/session.ts, src/backend/config.ts, test/unit/get-max-queue-depth.test.ts, test/unit/backend-command-detection.test.ts
   - Verify: npm test
-- [ ] **T02: Fix fallback sessionUpdate error escape and add stderr debug logging (#14, #29)** — Fix two correctness bugs in async/callback patterns:
+- [x] **T02: Wrapped fallback sessionUpdate in try/catch, moved stderr debug handler to constructor, and added 6 tests for bugs #14 and #29** — Fix two correctness bugs in async/callback patterns:
 
 **Bug #14 — Fallback sessionUpdate error escapes setTimeout:** In `src/acp/session-lifecycle.ts`, `emitAvailableCommandsInBackground()` has an async IIFE inside setTimeout. The primary `conn.sessionUpdate()` (line ~36) is inside a try/catch, but the fallback `conn.sessionUpdate()` (line ~53) is OUTSIDE the catch — it's a dangling `await` after the catch block. If the fallback throws, it becomes an unhandled rejection.
 
