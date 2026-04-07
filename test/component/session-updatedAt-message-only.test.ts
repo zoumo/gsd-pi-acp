@@ -30,7 +30,7 @@ test('listPiSessions: updatedAt prefers last message timestamp over later non-me
   process.env.PI_CODING_AGENT_DIR = root
 
   try {
-    const sessions = listPiSessions(piConfig()).filter(s => s.sessionId === 'sess-1')
+    const sessions = (await listPiSessions(piConfig())).filter(s => s.sessionId === 'sess-1')
     assert.equal(sessions.length, 1)
     assert.equal(sessions[0]?.updatedAt, '2026-01-01T00:00:02.000Z')
   } finally {

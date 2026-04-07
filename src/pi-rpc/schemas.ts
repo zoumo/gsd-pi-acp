@@ -41,7 +41,7 @@ export interface CommandsData {
   commands: Array<string | CommandData>
 }
 
-export interface TokenStatsData {
+interface TokenStatsData {
   input?: number
   output?: number
   cacheRead?: number
@@ -70,7 +70,7 @@ const ModelInfoSchema = z
   })
   .passthrough()
 
-export const StateSchema = z
+const StateSchema = z
   .object({
     thinkingLevel: z.string().optional(),
     model: ModelInfoSchema.optional(),
@@ -94,7 +94,7 @@ const ModelSchema = z
   })
   .passthrough()
 
-export const AvailableModelsSchema = z
+const AvailableModelsSchema = z
   .object({
     models: z.array(ModelSchema)
   })
@@ -106,7 +106,7 @@ export const AvailableModelsSchema = z
 
 const MessageSchema = z.object({}).passthrough()
 
-export const MessagesSchema = z
+const MessagesSchema = z
   .object({
     messages: z.array(MessageSchema)
   })
@@ -126,7 +126,7 @@ const CommandSchema = z
   })
   .passthrough()
 
-export const CommandsSchema = z
+const CommandsSchema = z
   .object({
     commands: z.array(z.union([z.string(), CommandSchema]))
   })
@@ -146,7 +146,7 @@ const TokenStatsSchema = z
   })
   .passthrough()
 
-export const SessionStatsSchema = z
+const SessionStatsSchema = z
   .object({
     sessionId: z.string().optional(),
     sessionFile: z.string().optional(),

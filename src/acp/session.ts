@@ -403,11 +403,9 @@ export class PiAcpSession {
   }
 
   private handlePiEvent(ev: PiRpcEvent) {
-    const type = String((ev as any).type ?? '')
-
-    switch (type) {
+    switch (ev.type) {
       case 'message_update': {
-        const ame = (ev as any).assistantMessageEvent
+        const ame = ev.assistantMessageEvent
 
         // Stream assistant text.
         if (ame?.type === 'text_delta' && typeof ame.delta === 'string') {
@@ -431,19 +429,19 @@ export class PiAcpSession {
         if (ame?.type === 'toolcall_start' || ame?.type === 'toolcall_delta' || ame?.type === 'toolcall_end') {
           const toolCall =
             // pi sometimes includes the tool call directly on the event
-            (ame as any)?.toolCall ??
+            ame.toolCall ??
             // ...and always includes it in the partial assistant message at contentIndex
-            (ame as any)?.partial?.content?.[(ame as any)?.contentIndex ?? 0]
+            ame.partial?.content?.[ame.contentIndex ?? 0]
 
-          const toolCallId = String((toolCall as any)?.id ?? '')
-          const toolName = String((toolCall as any)?.name ?? 'tool')
+          const toolCallId = String(toolCall?.id ?? '')
+          const toolName = String(toolCall?.name ?? 'tool')
 
           if (toolCallId) {
             const rawInput =
-              (toolCall as any)?.arguments && typeof (toolCall as any).arguments === 'object'
-                ? (toolCall as any).arguments
+              toolCall?.arguments && typeof toolCall.arguments === 'object'
+                ? toolCall.arguments
                 : (() => {
-                    const s = String((toolCall as any)?.partialArgs ?? '')
+                    const s = String(toolCall?.partialArgs ?? '')
                     if (!s) return undefined
                     try {
                       return JSON.parse(s)
@@ -489,21 +487,21 @@ export class PiAcpSession {
       }
 
       case 'tool_execution_start': {
-        const toolCallId = String((ev as any).toolCallId ?? crypto.randomUUID())
-        const toolName = String((ev as any).toolName ?? 'tool')
-        const args = (ev as any).args
+        const toolCallId = String(ev.toolCallId ?? crypto.randomUUID())
+        const toolName = String(ev.toolName ?? 'tool')
+        const args = ev.args
         let line: number | undefined
 
         // Capture pre-edit file contents so we can emit a structured ACP diff on completion.
         if (toolName === 'edit') {
-          const p = typeof args?.path === 'string' ? args.path : undefined
+          const p = typeof args?.['path'] === 'string' ? args['path'] : undefined
           if (p) {
             try {
               const abs = isAbsolute(p) ? p : resolvePath(this.cwd, p)
               const oldText = readFileSync(abs, 'utf8')
               this.editSnapshots.set(toolCallId, { path: p, oldText })
 
-              const needle = typeof args?.oldText === 'string' ? args.oldText : ''
+              const needle = typeof args?.['oldText'] === 'string' ? args['oldText'] : ''
               line = findUniqueLineNumber(oldText, needle)
             } catch {
               // Ignore snapshot failures; we'll fall back to plain text output.
@@ -540,10 +538,10 @@ export class PiAcpSession {
       }
 
       case 'tool_execution_update': {
-        const toolCallId = String((ev as any).toolCallId ?? '')
+        const toolCallId = String(ev.toolCallId ?? '')
         if (!toolCallId) break
 
-        const partial = (ev as any).partialResult
+        const partial = ev.partialResult
         const text = toolResultToText(partial)
 
         this.emit({
@@ -559,11 +557,11 @@ export class PiAcpSession {
       }
 
       case 'tool_execution_end': {
-        const toolCallId = String((ev as any).toolCallId ?? '')
+        const toolCallId = String(ev.toolCallId ?? '')
         if (!toolCallId) break
 
-        const result = (ev as any).result
-        const isError = Boolean((ev as any).isError)
+        const result = ev.result
+        const isError = Boolean(ev.isError)
         const text = toolResultToText(result)
 
         // If this was an edit and we captured a snapshot, emit a structured ACP diff.
@@ -701,10 +699,10 @@ export class PiAcpSession {
   }
 }
 
-function formatAutoRetryMessage(ev: PiRpcEvent): string {
-  const attempt = Number((ev as any).attempt)
-  const maxAttempts = Number((ev as any).maxAttempts)
-  const delayMs = Number((ev as any).delayMs)
+function formatAutoRetryMessage(ev: { attempt?: number; maxAttempts?: number; delayMs?: number }): string {
+  const attempt = Number(ev.attempt)
+  const maxAttempts = Number(ev.maxAttempts)
+  const delayMs = Number(ev.delayMs)
 
   if (!Number.isFinite(attempt) || !Number.isFinite(maxAttempts) || !Number.isFinite(delayMs)) {
     return 'Retrying...'

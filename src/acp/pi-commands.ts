@@ -1,6 +1,6 @@
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
 
-export type PiRpcCommandInfo = {
+type PiRpcCommandInfo = {
   name?: unknown
   description?: unknown
   source?: unknown

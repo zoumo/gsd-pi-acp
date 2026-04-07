@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { getPiAcpSessionMapPath } from './paths.js'
 
-export type StoredSession = {
+type StoredSession = {
   sessionId: string
   cwd: string
   sessionFile: string

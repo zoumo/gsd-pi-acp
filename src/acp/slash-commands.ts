@@ -1,5 +1,4 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
 import type { BackendConfig } from '../backend/config.js'
@@ -112,19 +111,6 @@ export function loadSlashCommands(config: BackendConfig, cwd: string): FileSlash
 /**
  * Legacy function for backward compatibility (pi backend only).
  */
-export function loadSlashCommandsLegacy(cwd: string): FileSlashCommand[] {
-  const commands: FileSlashCommand[] = []
-
-  const userDir = join(homedir(), '.pi', 'agent', 'prompts')
-  const projectDir = resolve(cwd, '.pi', 'prompts')
-
-  // Match pi ordering: user first, then project.
-  commands.push(...loadCommandsFromDir(userDir, 'user'))
-  commands.push(...loadCommandsFromDir(projectDir, 'project'))
-
-  return commands
-}
-
 /**
  * Convert file-based commands to ACP AvailableCommand objects.
  * De-dupes by name (first wins).

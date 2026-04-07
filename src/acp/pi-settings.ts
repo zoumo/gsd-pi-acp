@@ -1,8 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import type { BackendConfig } from '../backend/config.js'
-import { resolveAgentDir } from '../backend/config.js'
 
 function isObject(x: unknown): x is Record<string, unknown> {
   return Boolean(x) && typeof x === 'object' && !Array.isArray(x)
@@ -36,21 +34,6 @@ function getMergedSettings(config: BackendConfig, cwd: string): Record<string, u
   const global = readJsonFile(globalSettingsPath)
   const project = readJsonFile(projectSettingsPath)
   return deepMerge(global, project)
-}
-
-/**
- * Get the agent directory for the backend.
- * Uses BackendConfig's agentDirEnvVar if set, otherwise falls back to default agentDir.
- */
-export function getAgentDir(config: BackendConfig): string {
-  return resolveAgentDir(config)
-}
-
-/**
- * Legacy function for backward compatibility (pi backend only).
- */
-export function getAgentDirLegacy(): string {
-  return process.env.PI_CODING_AGENT_DIR ? resolve(process.env.PI_CODING_AGENT_DIR) : join(homedir(), '.pi', 'agent')
 }
 
 /**
@@ -92,13 +75,4 @@ export function getQuietStartup(config: BackendConfig, cwd: string): boolean {
   return false
 }
 
-/**
- * Legacy functions for backward compatibility (pi backend only).
- */
-export function getEnableSkillCommandsLegacy(cwd: string): boolean {
-  return getEnableSkillCommands({ name: 'pi' } as any, cwd)
-}
 
-export function getQuietStartupLegacy(cwd: string): boolean {
-  return getQuietStartup({ name: 'pi' } as any, cwd)
-}

@@ -1,6 +1,6 @@
 import type { ContentBlock } from '@agentclientprotocol/sdk'
 
-export type PiImage = {
+type PiImage = {
   type: 'image'
   mimeType: string
   data: string

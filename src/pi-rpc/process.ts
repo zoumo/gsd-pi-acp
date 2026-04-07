@@ -70,7 +70,102 @@ type PiRpcResponse = {
   error?: string
 }
 
-export type PiRpcEvent = Record<string, unknown>
+// ---------------------------------------------------------------------------
+// Pi RPC event types (discriminated union by `type`)
+// ---------------------------------------------------------------------------
+
+/** Tool call shape embedded in message_update events. */
+export interface PiToolCall {
+  id?: string
+  name?: string
+  arguments?: Record<string, unknown>
+  partialArgs?: string
+}
+
+/** Assistant message event within a message_update. */
+export interface PiAssistantMessageEvent {
+  type: string
+  delta?: string
+  toolCall?: PiToolCall
+  partial?: { content?: PiToolCall[] }
+  contentIndex?: number
+}
+
+interface PiMessageUpdateEvent {
+  type: 'message_update'
+  assistantMessageEvent?: PiAssistantMessageEvent
+}
+
+interface PiToolExecutionStartEvent {
+  type: 'tool_execution_start'
+  toolCallId?: string
+  toolName?: string
+  args?: Record<string, unknown>
+}
+
+interface PiToolExecutionUpdateEvent {
+  type: 'tool_execution_update'
+  toolCallId?: string
+  partialResult?: unknown
+}
+
+interface PiToolExecutionEndEvent {
+  type: 'tool_execution_end'
+  toolCallId?: string
+  result?: unknown
+  isError?: boolean
+}
+
+interface PiAutoRetryStartEvent {
+  type: 'auto_retry_start'
+  attempt?: number
+  maxAttempts?: number
+  delayMs?: number
+}
+
+interface PiAutoRetryEndEvent {
+  type: 'auto_retry_end'
+}
+
+interface PiAutoCompactionStartEvent {
+  type: 'auto_compaction_start'
+}
+
+interface PiAutoCompactionEndEvent {
+  type: 'auto_compaction_end'
+}
+
+interface PiAgentStartEvent {
+  type: 'agent_start'
+}
+
+interface PiTurnEndEvent {
+  type: 'turn_end'
+}
+
+interface PiAgentEndEvent {
+  type: 'agent_end'
+}
+
+interface PiProcessExitEvent {
+  type: 'process_exit'
+  code?: number | null
+  signal?: string | null
+}
+
+export type PiRpcEvent =
+  | PiMessageUpdateEvent
+  | PiToolExecutionStartEvent
+  | PiToolExecutionUpdateEvent
+  | PiToolExecutionEndEvent
+  | PiAutoRetryStartEvent
+  | PiAutoRetryEndEvent
+  | PiAutoCompactionStartEvent
+  | PiAutoCompactionEndEvent
+  | PiAgentStartEvent
+  | PiTurnEndEvent
+  | PiAgentEndEvent
+  | PiProcessExitEvent
 
 type SpawnParams = {
   cwd: string

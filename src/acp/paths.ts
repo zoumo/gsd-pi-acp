@@ -1,21 +1,6 @@
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
-import type { BackendConfig } from '../backend/config.js'
-
-/**
- * Storage owned by the ACP adapter.
- *
- * Backend-specific: ~/.gsd/session-map.json for gsd, ~/.pi/pi-acp/session-map.json for pi.
- */
-export function getSessionMapPath(config: BackendConfig): string {
-  return config.sessionMapPath
-}
-
-/**
- * Legacy function for backward compatibility.
- * Uses ~/.pi/pi-acp/session-map.json path.
- */
-export function getPiAcpDir(): string {
+function getPiAcpDir(): string {
   return join(homedir(), '.pi', 'pi-acp')
 }
 

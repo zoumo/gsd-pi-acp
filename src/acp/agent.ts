@@ -268,7 +268,7 @@ export class PiAcpAgent implements ACPAgent {
 
     // For gsd, sessions are cwd-scoped, so we need a cwd to list sessions.
     // For pi, we can list all sessions and filter afterwards.
-    const all = listPiSessions(this.config, effectiveCwd ?? undefined)
+    const all = await listPiSessions(this.config, effectiveCwd ?? undefined)
 
     // For pi, filter by cwd if provided (gsd is already scoped by cwd)
     const filtered = this.config.name === 'pi' && effectiveCwd ? all.filter(s => s.cwd === effectiveCwd) : all
@@ -308,7 +308,7 @@ export class PiAcpAgent implements ACPAgent {
     // MVP: ignore mcpServers.
     // Prefer ACP-created mapping first (fast path), otherwise scan pi sessions dir.
     const stored = this.store.get(params.sessionId)
-    const sessionFile = stored?.sessionFile ?? findPiSessionFile(this.config, params.sessionId, params.cwd)
+    const sessionFile = stored?.sessionFile ?? await findPiSessionFile(this.config, params.sessionId, params.cwd)
 
     if (!sessionFile) {
       throw RequestError.invalidParams(`Unknown sessionId: ${params.sessionId}`)

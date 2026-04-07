@@ -29,7 +29,7 @@ test('listPiSessions: finds session_info.name even when it is outside the tail w
   process.env.PI_CODING_AGENT_DIR = root
 
   try {
-    const s = listPiSessions(piConfig()).find(x => x.sessionId === 'sess-1')
+    const s = (await listPiSessions(piConfig())).find(x => x.sessionId === 'sess-1')
     assert.ok(s)
     assert.equal(s?.title, 'Named Early')
   } finally {

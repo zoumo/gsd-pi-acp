@@ -1,39 +1,66 @@
+/** Shape of pi tool result data. Fields vary by tool — all optional. */
+interface PiToolResultDetails {
+  diff?: string
+  stdout?: string
+  stderr?: string
+  output?: string
+  exitCode?: number
+  code?: number
+  [key: string]: unknown
+}
+
+interface PiToolResult {
+  content?: Array<{ type?: string; text?: string }>
+  details?: PiToolResultDetails
+  stdout?: string
+  stderr?: string
+  output?: string
+  exitCode?: number
+  code?: number
+}
+
+function asToolResult(result: unknown): PiToolResult | null {
+  if (result && typeof result === 'object') return result as PiToolResult
+  return null
+}
+
 export function toolResultToText(result: unknown): string {
   if (!result) return ''
 
+  const r = asToolResult(result)
+  if (!r) return String(result)
+
   // pi tool results generally look like: { content: [{type:"text", text:"..."}], details: {...} }
-  const content = (result as any).content
-  if (Array.isArray(content)) {
-    const texts = content
-      .map((c: any) => (c?.type === 'text' && typeof c.text === 'string' ? c.text : ''))
+  if (Array.isArray(r.content)) {
+    const texts = r.content
+      .map(c => (c?.type === 'text' && typeof c.text === 'string' ? c.text : ''))
       .filter(Boolean)
     if (texts.length) return texts.join('')
   }
 
-  const details = (result as any)?.details
+  const details = r.details
 
   // Some pi tools return a unified diff in `details.diff`.
-  const diff = details?.diff
-  if (typeof diff === 'string' && diff.trim()) {
-    return diff
+  if (typeof details?.diff === 'string' && details.diff.trim()) {
+    return details.diff
   }
 
   // The bash tool frequently returns stdout/stderr in `details` rather than content blocks.
   const stdout =
     (typeof details?.stdout === 'string' ? details.stdout : undefined) ??
-    (typeof (result as any)?.stdout === 'string' ? (result as any).stdout : undefined) ??
+    (typeof r.stdout === 'string' ? r.stdout : undefined) ??
     (typeof details?.output === 'string' ? details.output : undefined) ??
-    (typeof (result as any)?.output === 'string' ? (result as any).output : undefined)
+    (typeof r.output === 'string' ? r.output : undefined)
 
   const stderr =
     (typeof details?.stderr === 'string' ? details.stderr : undefined) ??
-    (typeof (result as any)?.stderr === 'string' ? (result as any).stderr : undefined)
+    (typeof r.stderr === 'string' ? r.stderr : undefined)
 
   const exitCode =
     (typeof details?.exitCode === 'number' ? details.exitCode : undefined) ??
-    (typeof (result as any)?.exitCode === 'number' ? (result as any).exitCode : undefined) ??
+    (typeof r.exitCode === 'number' ? r.exitCode : undefined) ??
     (typeof details?.code === 'number' ? details.code : undefined) ??
-    (typeof (result as any)?.code === 'number' ? (result as any).code : undefined)
+    (typeof r.code === 'number' ? r.code : undefined)
 
   if ((typeof stdout === 'string' && stdout.trim()) || (typeof stderr === 'string' && stderr.trim())) {
     const parts: string[] = []

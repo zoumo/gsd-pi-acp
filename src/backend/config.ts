@@ -60,7 +60,7 @@ export interface BackendConfig {
 /**
  * Create gsd backend configuration.
  */
-export function gsdConfig(): BackendConfig {
+function gsdConfig(): BackendConfig {
   const baseDir = join(homedir(), '.gsd')
   const isWin = platform() === 'win32'
 

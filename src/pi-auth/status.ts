@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { BackendConfig } from '../backend/config.js'
 import { resolveAgentDir } from '../backend/config.js'
@@ -15,27 +14,8 @@ function safeReadJson(path: string): any | null {
   }
 }
 
-/**
- * Get the agent directory for the backend.
- * Uses BackendConfig's agentDirEnvVar if set, otherwise falls back to default agentDir.
- */
-export function getPiAgentDir(config: BackendConfig): string {
+function getPiAgentDir(config: BackendConfig): string {
   return resolveAgentDir(config)
-}
-
-/**
- * Legacy function for backward compatibility (pi backend only).
- */
-export function getPiAgentDirLegacy(): string {
-  // pi-mono uses ENV_AGENT_DIR = `${APP_NAME.toUpperCase()}_CODING_AGENT_DIR`.
-  // Default APP_NAME is "pi".
-  const envDir = process.env.PI_CODING_AGENT_DIR
-  if (envDir) {
-    if (envDir === '~') return homedir()
-    if (envDir.startsWith('~/')) return homedir() + envDir.slice(1)
-    return envDir
-  }
-  return join(homedir(), '.pi', 'agent')
 }
 
 export function hasAnyPiAuthConfigured(config: BackendConfig): boolean {
@@ -93,9 +73,4 @@ export function hasAnyPiAuthConfigured(config: BackendConfig): boolean {
   return false
 }
 
-/**
- * Legacy function for backward compatibility (pi backend only).
- */
-export function hasAnyPiAuthConfiguredLegacy(): boolean {
-  return hasAnyPiAuthConfigured({ name: 'pi' } as any)
-}
+
