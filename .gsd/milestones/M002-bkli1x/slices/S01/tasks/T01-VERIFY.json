@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M002-bkli1x/S01/T01",
+  "timestamp": 1775487142862,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "durationMs": 4220,
+      "verdict": "pass"
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "durationMs": 988,
+      "verdict": "pass"
+    },
+    {
+      "command": "npm run lint",
+      "exitCode": 1,
+      "durationMs": 1642,
+      "verdict": "fail"
+    },
+    {
+      "command": "grep -q 'Number.isFinite' src/pi-rpc/process.ts",
+      "exitCode": 0,
+      "durationMs": 25,
+      "verdict": "pass"
+    },
+    {
+      "command": "grep -q 'stderr.write' src/acp/session.ts",
+      "exitCode": 0,
+      "durationMs": 18,
+      "verdict": "pass"
+    },
+    {
+      "command": "! grep -rq 'isAbsolutePath' src/",
+      "exitCode": 0,
+      "durationMs": 29,
+      "verdict": "pass"
+    },
+    {
+      "command": "grep -q 'dirEnsured' src/logger.ts",
+      "exitCode": 0,
+      "durationMs": 15,
+      "verdict": "pass"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

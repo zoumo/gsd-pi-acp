@@ -28,7 +28,7 @@ function getMaxQueueDepth(): number {
 process.on('unhandledRejection', (reason) => {
   const msg = 'unhandledRejection: ' + String(reason)
   debugLog(msg)
-  try { process.stderr.write(`[gsd-pi-acp] ${msg}\n`) } catch {}
+  try { process.stderr.write(`[gsd-pi-acp] ${msg}\n`) } catch { /* stderr unavailable */ }
 })
 
 type SessionCreateParams = {

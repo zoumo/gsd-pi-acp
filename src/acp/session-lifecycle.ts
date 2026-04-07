@@ -1,6 +1,5 @@
 import type { AgentSideConnection, ContentBlock, ToolCallContent } from '@agentclientprotocol/sdk'
 import type { PiRpcProcess } from '../pi-rpc/process.js'
-import type { BackendConfig } from '../backend/config.js'
 import type { FileSlashCommand } from './slash-commands.js'
 import { toAvailableCommands } from './slash-commands.js'
 import { toAvailableCommandsFromPiGetCommands } from './pi-commands.js'

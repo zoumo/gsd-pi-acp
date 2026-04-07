@@ -2,29 +2,6 @@
 id: T01
 parent: S01
 milestone: M002-bkli1x
-provides: []
-requires: []
-affects: []
-key_files: ["src/pi-rpc/process.ts", "src/acp/session.ts", "src/logger.ts", "src/acp/paths.ts", "src/acp/agent.ts"]
-key_decisions: []
-patterns_established: []
-drill_down_paths: []
-observability_surfaces: []
-duration: ""
-verification_result: "npm test: 90 pass, 0 fail. npm run typecheck: clean. npm run lint: 2 pre-existing unrelated errors. All four grep assertions pass: Number.isFinite in process.ts, stderr.write in session.ts, no isAbsolutePath anywhere in src/, dirEnsured in logger.ts."
-completed_at: 2026-04-06T14:52:05.084Z
-blocker_discovered: false
----
-
-# T01: Confirmed all four P1-P3 code review findings (NaN guard, stderr fallback, node:path isAbsolute, cached mkdir) are addressed with 90 passing tests and clean typecheck
-
-> Confirmed all four P1-P3 code review findings (NaN guard, stderr fallback, node:path isAbsolute, cached mkdir) are addressed with 90 passing tests and clean typecheck
-
-## What Happened
----
-id: T01
-parent: S01
-milestone: M002-bkli1x
 key_files:
   - src/pi-rpc/process.ts
   - src/acp/session.ts
@@ -33,9 +10,9 @@ key_files:
   - src/acp/agent.ts
 key_decisions:
   - (none)
-duration: ""
+duration: 
 verification_result: mixed
-completed_at: 2026-04-06T14:52:05.085Z
+completed_at: 2026-04-06T14:52:05.084Z
 blocker_discovered: false
 ---
 
@@ -63,7 +40,6 @@ npm test: 90 pass, 0 fail. npm run typecheck: clean. npm run lint: 2 pre-existin
 | 6 | `! grep -rq 'isAbsolutePath' src/` | 0 | ✅ pass | 100ms |
 | 7 | `grep -q 'dirEnsured' src/logger.ts` | 0 | ✅ pass | 100ms |
 
-
 ## Deviations
 
 None.
@@ -79,10 +55,3 @@ Two pre-existing lint errors: unused BackendConfig import in session-lifecycle.t
 - `src/logger.ts`
 - `src/acp/paths.ts`
 - `src/acp/agent.ts`
-
-
-## Deviations
-None.
-
-## Known Issues
-Two pre-existing lint errors: unused BackendConfig import in session-lifecycle.ts, empty catch block in session.ts unhandledRejection handler.

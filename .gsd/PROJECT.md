@@ -16,6 +16,7 @@ ACP (Agent Client Protocol) adapter for `gsd` and `pi` coding agents. Runs as an
   - S02: BackendConfig abstraction, auto-detection (gsd first), cwd-scoped sessions, package renamed
   - S03: CI workflow (typecheck/lint/test), 20 new process.ts tests, FakeChildProcess helper
   - S04: agent.ts 563 lines (58% reduction), Zod schemas, 6 modules extracted, SessionStore injection
+- **M002-bkli1x Complete**: Verification-only — confirmed all four P1-P3 code review findings (NaN guard, stderr fallback, node:path isAbsolute, cached mkdir) were already addressed in M001-ljn52j. No code changes needed.
 - **Deviation**: agent.ts at 563 lines vs <300 target (core ACP handlers remain, documented)
 
 ## Architecture
@@ -59,6 +60,10 @@ src/
 ## Test Strategy
 
 Node test runner with tsx for TypeScript execution. Unit tests use FakeChildProcess helper for subprocess mocking without real spawns (test/helpers/fake-child.ts). Component tests use FakePiRpcProcess. Comprehensive test coverage for process.ts critical paths: timeout (settled-guard pattern, 4 tests), concurrent request ID routing (4 tests), dispose cleanup (readline.close + child.kill, 6 tests), crash recovery (exit handler, 6 tests), queue overflow (2 tests). CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs run in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits without modifying constants.
+
+## Known Issues
+
+- Two pre-existing lint errors: unused BackendConfig import in session-lifecycle.ts, empty catch block in session.ts unhandledRejection handler
 
 ## Dependencies
 
