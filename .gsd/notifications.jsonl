@@ -1,0 +1,4 @@
+{"id":"3ad1c871-8f41-4da3-bfc1-622356dce2c9","ts":"2026-04-07T17:11:00.487Z","severity":"info","message":"Auto-mode started. Will loop until milestone complete.","source":"notify","read":false}
+{"id":"fb700f8e-8f48-49b8-bba4-315315c21d62","ts":"2026-04-07T17:11:00.489Z","severity":"info","message":"Pre-flight: 4 milestones queued. All have full context.","source":"notify","read":false}
+{"id":"e0da7f1c-4ac4-49f9-ae73-6c129e8caff2","ts":"2026-04-07T17:11:02.246Z","severity":"info","message":"Pre-dispatch: pre-dispatch: created gsd snapshot after 77m of uncommitted changes","source":"notify","read":false}
+{"id":"61b63c6c-7e50-44bf-b91a-68303ee05433","ts":"2026-04-07T17:11:03.472Z","severity":"info","message":"Pre-dispatch hook: convention-patrol","source":"notify","read":false}

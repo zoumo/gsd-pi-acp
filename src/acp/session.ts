@@ -103,6 +103,8 @@ export class SessionManager {
   close(sessionId: string): void {
     const s = this.sessions.get(sessionId)
     if (!s) return
+    // Settle any in-flight or queued prompts before disposing the process.
+    s.settleAllPending('error')
     try {
       s.proc.dispose?.()
     } catch {
@@ -244,6 +246,25 @@ export class PiAcpSession {
     this.fileCommands = opts.fileCommands ?? []
 
     this.proc.onEvent(ev => this.handlePiEvent(ev))
+  }
+
+  /**
+   * Settle the in-flight pendingTurn and drain the turnQueue.
+   * Called from process_exit handler and SessionManager.close() to ensure
+   * no ACP prompt() promises are left hanging.
+   */
+  settleAllPending(reason: StopReason): void {
+    // Resolve the in-flight turn.
+    if (this.pendingTurn) {
+      this.pendingTurn.resolve(reason)
+      this.pendingTurn = null
+    }
+    // Drain queued turns.
+    if (this.turnQueue.length > 0) {
+      const queued = this.turnQueue.splice(0, this.turnQueue.length)
+      for (const t of queued) t.resolve(reason)
+    }
+    this.inAgentLoop = false
   }
 
   setStartupInfo(text: string) {
@@ -688,7 +709,8 @@ export class PiAcpSession {
       }
 
       case 'process_exit': {
-        debugLog('process_exit event: clearing editSnapshots')
+        debugLog('process_exit event: settling pending turns and clearing editSnapshots')
+        this.settleAllPending('error')
         this.editSnapshots.clear()
         break
       }
