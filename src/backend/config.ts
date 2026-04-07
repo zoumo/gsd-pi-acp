@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { platform } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { debugLog } from '../logger.js'
@@ -145,7 +145,7 @@ export function getBackendCommand(): { command: string; backend: BackendName; au
   if (envOverride) {
     // User explicitly specified a command - infer backend from it
     const cmd = envOverride.trim()
-    const backend: BackendName = cmd.toLowerCase().includes('gsd') ? 'gsd' : 'pi'
+    const backend: BackendName = basename(cmd).toLowerCase().startsWith('gsd') ? 'gsd' : 'pi'
     debugLog(`backend command: env override=${cmd} inferred backend=${backend}`)
     return { command: cmd, backend, autoDetected: false }
   }

@@ -19,8 +19,9 @@ import { debugLog } from '../logger.js'
 import type { BackendConfig } from '../backend/config.js'
 
 /** Maximum pending prompts in the turn queue. Override via PI_ACP_MAX_QUEUE_DEPTH env var. */
-function getMaxQueueDepth(): number {
-  return Number(process.env.PI_ACP_MAX_QUEUE_DEPTH) || 20
+export function getMaxQueueDepth(): number {
+  const val = Number(process.env.PI_ACP_MAX_QUEUE_DEPTH)
+  return val > 0 ? val : 20
 }
 
 // Register unhandledRejection handler once at module load time to catch stray promise

@@ -10,10 +10,11 @@ ACP (Agent Client Protocol) adapter for `gsd` and `pi` coding agents. Runs as an
 
 - **Working**: Robust ACP adapter with dual backend support (gsd primary, pi fallback), subprocess timeout handling, clean shutdown, debug logging, CI gates, comprehensive test coverage
 - **Backend**: Defaults to `gsd` if available, falls back to `pi`, override via `PI_ACP_PI_COMMAND`
-- **Test coverage**: 90 tests passing
+- **Test coverage**: 101 tests passing
 - **M001-ljn52j Complete**: Core robustness — RPC timeout, clean shutdown, queue limit, BackendConfig abstraction, CI workflow, agent.ts decomposition, Zod schemas
 - **M002-bkli1x Complete**: Verification — confirmed all P1-P3 code review findings already addressed
 - **M003 Complete**: Code hygiene — removed 30+ dead exports/legacy functions (1086 lines), defined PiRpcEvent discriminated union (as-any: 51→12), converted pi-sessions.ts to async fs/promises
+- **M004 In Progress**: Code review remediation — S01 complete (hang/leak fixes: process crash settles prompts, post-spawn cleanup, defensive event handlers). S02-S04 remaining (correctness bugs, test repairs, operational improvements).
 
 ## Architecture
 
@@ -58,12 +59,3 @@ src/
 Node test runner with tsx. Unit tests use FakeChildProcess helper for subprocess mocking. CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits.
 
 ## Known Issues
-
-- 12 remaining `as any` casts at Node.js/external API boundaries (low priority)
-- readFileSync used intentionally in session.ts event handler for edit diff snapshot ordering
-
-## Dependencies
-
-- `@agentclientprotocol/sdk` - ACP types and server wiring
-- `zod` - Schema validation for RPC responses
-- `tsx`, `tsup`, `typescript`, `eslint` - Dev tooling

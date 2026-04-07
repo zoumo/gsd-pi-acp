@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "milestoneId": "M004",
+  "sliceId": "S02",
+  "timestamp": 1775583033547,
+  "status": "fail",
+  "durationMs": 1,
+  "checks": [
+    {
+      "category": "file",
+      "target": "test/unit/get-max-queue-depth.test.ts",
+      "passed": false,
+      "message": "Task T01 references 'test/unit/get-max-queue-depth.test.ts' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "test/unit/backend-command-detection.test.ts",
+      "passed": false,
+      "message": "Task T01 references 'test/unit/backend-command-detection.test.ts' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/acp/session.ts` — contains getMaxQueueDepth() with the `Number(env) || 20` bug",
+      "passed": false,
+      "message": "Task T01 references '`src/acp/session.ts` — contains getMaxQueueDepth() with the `Number(env) || 20` bug' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/backend/config.ts` — contains getBackendCommand() with the `cmd.toLowerCase().includes('gsd')` bug",
+      "passed": false,
+      "message": "Task T01 references '`src/backend/config.ts` — contains getBackendCommand() with the `cmd.toLowerCase().includes('gsd')` bug' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "test/unit/session-lifecycle-fallback.test.ts",
+      "passed": false,
+      "message": "Task T02 references 'test/unit/session-lifecycle-fallback.test.ts' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "test/unit/process-stderr-logging.test.ts",
+      "passed": false,
+      "message": "Task T02 references 'test/unit/process-stderr-logging.test.ts' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/acp/session-lifecycle.ts` — contains emitAvailableCommandsInBackground() with unprotected fallback sessionUpdate",
+      "passed": false,
+      "message": "Task T02 references '`src/acp/session-lifecycle.ts` — contains emitAvailableCommandsInBackground() with unprotected fallback sessionUpdate' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/pi-rpc/process.ts` — contains stderr handler that silently swallows data",
+      "passed": false,
+      "message": "Task T02 references '`src/pi-rpc/process.ts` — contains stderr handler that silently swallows data' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/acp/session.ts` — T01 already merged (getMaxQueueDepth fix)",
+      "passed": false,
+      "message": "Task T02 references '`src/acp/session.ts` — T01 already merged (getMaxQueueDepth fix)' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    },
+    {
+      "category": "file",
+      "target": "`src/backend/config.ts` — T01 already merged (basename detection fix)",
+      "passed": false,
+      "message": "Task T02 references '`src/backend/config.ts` — T01 already merged (basename detection fix)' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    }
+  ]
+}
