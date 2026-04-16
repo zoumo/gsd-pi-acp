@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getBackendCommand } from '../../src/backend/config.js'
+import { getBackendCommand, _resetBackendCache } from '../../src/backend/config.js'
 
 function withEnv(key: string, value: string | undefined, fn: () => void) {
   const prev = process.env[key]
@@ -9,6 +9,7 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
   } else {
     process.env[key] = value
   }
+  _resetBackendCache()
   try {
     fn()
   } finally {
@@ -17,6 +18,7 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
     } else {
       process.env[key] = prev
     }
+    _resetBackendCache()
   }
 }
 

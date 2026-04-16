@@ -1,5 +1,5 @@
 import { describe, it, beforeEach } from 'node:test'
-import assert from 'node:assert'
+import assert from 'node:assert/strict'
 import { PiRpcProcess } from '../../src/pi-rpc/process.js'
 import { FakeChildProcess } from '../helpers/fake-child.js'
 
