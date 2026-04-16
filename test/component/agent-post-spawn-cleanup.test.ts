@@ -21,6 +21,10 @@ class FakeSessions {
 // ── Issue #3: post-spawn failure disposes subprocess ─────────────────────
 
 test('newSession disposes subprocess when post-spawn code throws after spawn', async () => {
+  // Ensure auth gate passes in CI where no real API keys exist.
+  const prevApiKey = process.env.ANTHROPIC_API_KEY
+  if (!prevApiKey) process.env.ANTHROPIC_API_KEY = 'test-key'
+
   const conn = new FakeAgentSideConnection()
 
   const session = {
@@ -65,9 +69,16 @@ test('newSession disposes subprocess when post-spawn code throws after spawn', a
   // The session must have been cleaned up via sessions.close()
   assert.deepEqual(fakeSessions.closedIds, ['s-post-spawn'])
   assert.equal(session.proc.disposeCalled, 1)
+
+  if (prevApiKey == null) delete process.env.ANTHROPIC_API_KEY
+  else process.env.ANTHROPIC_API_KEY = prevApiKey
 })
 
 test('newSession disposes subprocess when getAvailableModels throws after spawn', async () => {
+  // Ensure auth gate passes in CI where no real API keys exist.
+  const prevApiKey = process.env.ANTHROPIC_API_KEY
+  if (!prevApiKey) process.env.ANTHROPIC_API_KEY = 'test-key'
+
   const conn = new FakeAgentSideConnection()
 
   const session = {
@@ -104,4 +115,7 @@ test('newSession disposes subprocess when getAvailableModels throws after spawn'
 
   assert.deepEqual(fakeSessions.closedIds, ['s-models-fail'])
   assert.equal(session.proc.disposeCalled, 1)
+
+  if (prevApiKey == null) delete process.env.ANTHROPIC_API_KEY
+  else process.env.ANTHROPIC_API_KEY = prevApiKey
 })

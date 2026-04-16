@@ -16,6 +16,11 @@ class FakeSessions {
 }
 
 test('PiAcpAgent: newSession throws AUTH_REQUIRED when pi reports zero available models', async () => {
+  // Ensure pre-spawn auth gate passes in CI where no real API keys exist.
+  // This test verifies the *post-spawn* zero-models auth gate, not the pre-spawn one.
+  const prevApiKey = process.env.ANTHROPIC_API_KEY
+  if (!prevApiKey) process.env.ANTHROPIC_API_KEY = 'test-key'
+
   const conn = new FakeAgentSideConnection()
 
   const session = {
@@ -52,4 +57,7 @@ test('PiAcpAgent: newSession throws AUTH_REQUIRED when pi reports zero available
   // The session should be cleaned up via sessions.close(), which disposes the subprocess.
   assert.deepEqual(fakeSessions.closedIds, ['s1'])
   assert.equal((session.proc as any).disposeCalled, 1)
+
+  if (prevApiKey == null) delete process.env.ANTHROPIC_API_KEY
+  else process.env.ANTHROPIC_API_KEY = prevApiKey
 })
