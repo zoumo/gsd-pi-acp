@@ -69,7 +69,7 @@ export function getQuietStartup(config: BackendConfig, cwd: string): boolean {
   if (typeof direct === 'boolean') return direct
 
   // Back-compat: some versions used quietStart
-  const legacy = (merged as any).quietStart
+  const legacy = merged.quietStart
   if (typeof legacy === 'boolean') return legacy
 
   return false

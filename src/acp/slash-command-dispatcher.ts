@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { parseState, parseSessionStats } from '../pi-rpc/schemas.js'
 import type { PiAcpSession } from './session.js'
+import type { BackendConfig } from '../backend/config.js'
 
 /**
  * Handle built-in ACP slash commands (headless-friendly subset).
@@ -13,7 +14,8 @@ export async function handleSlashCommand(
   session: PiAcpSession,
   conn: AgentSideConnection,
   cmd: string,
-  args: string[]
+  args: string[],
+  config?: BackendConfig
 ): Promise<StopReason | null> {
   if (cmd === 'compact') {
     return handleCompact(session, conn, args)
@@ -36,11 +38,11 @@ export async function handleSlashCommand(
   }
 
   if (cmd === 'changelog') {
-    return handleChangelog(session, conn)
+    return handleChangelog(session, conn, config)
   }
 
   if (cmd === 'export') {
-    return handleExport(session, conn)
+    return handleExport(session, conn, config)
   }
 
   if (cmd === 'autocompact') {
@@ -56,7 +58,20 @@ async function handleCompact(
   args: string[]
 ): Promise<StopReason> {
   const customInstructions = args.join(' ').trim() || undefined
-  const res = await session.proc.compact(customInstructions)
+
+  let res: unknown
+  try {
+    res = await session.proc.compact(customInstructions)
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Compaction failed: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
 
   const r = res && typeof res === 'object' ? (res as Record<string, unknown>) : null
   const tokensBefore = typeof r?.tokensBefore === 'number' ? r.tokensBefore : null
@@ -84,7 +99,19 @@ async function handleSession(
   session: PiAcpSession,
   conn: AgentSideConnection
 ): Promise<StopReason> {
-  const rawData = await session.proc.getSessionStats()
+  let rawData: unknown
+  try {
+    rawData = await session.proc.getSessionStats()
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to get session stats: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
   const stats = parseSessionStats(rawData)
 
   const lines: string[] = []
@@ -179,7 +206,21 @@ async function handleSteering(
   args: string[]
 ): Promise<StopReason> {
   const modeRaw = String(args[0] ?? '').toLowerCase()
-  const rawData = await session.proc.getState()
+
+  // [BugFix B] Protect getState() so a subprocess crash doesn't escape the handler.
+  let rawData: unknown
+  try {
+    rawData = await session.proc.getState()
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to read steering state: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
   const state = parseState(rawData)
   const current = String(state?.steeringMode ?? '')
 
@@ -212,7 +253,18 @@ async function handleSteering(
     return 'end_turn'
   }
 
-  await session.proc.setSteeringMode(modeRaw as 'all' | 'one-at-a-time')
+  try {
+    await session.proc.setSteeringMode(modeRaw as 'all' | 'one-at-a-time')
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to set steering mode: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
 
   await conn.sessionUpdate({
     sessionId: session.sessionId,
@@ -231,7 +283,21 @@ async function handleFollowUp(
   args: string[]
 ): Promise<StopReason> {
   const modeRaw = String(args[0] ?? '').toLowerCase()
-  const rawData = await session.proc.getState()
+
+  // [BugFix C] Protect getState() so a subprocess crash doesn't escape the handler.
+  let rawData: unknown
+  try {
+    rawData = await session.proc.getState()
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to read follow-up state: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
   const state = parseState(rawData)
   const current = String(state?.followUpMode ?? '')
 
@@ -264,7 +330,18 @@ async function handleFollowUp(
     return 'end_turn'
   }
 
-  await session.proc.setFollowUpMode(modeRaw as 'all' | 'one-at-a-time')
+  try {
+    await session.proc.setFollowUpMode(modeRaw as 'all' | 'one-at-a-time')
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to set follow-up mode: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
 
   await conn.sessionUpdate({
     sessionId: session.sessionId,
@@ -279,16 +356,17 @@ async function handleFollowUp(
 
 async function handleChangelog(
   session: PiAcpSession,
-  conn: AgentSideConnection
+  conn: AgentSideConnection,
+  config?: BackendConfig
 ): Promise<StopReason> {
-  // Read pi's installed CHANGELOG.md. Adapter-side, no model call.
-  const changelogPath = findChangelog()
+  // Read the backend's installed CHANGELOG.md. Adapter-side, no model call.
+  const changelogPath = config ? findChangelog(config) : null
   if (!changelogPath) {
     await conn.sessionUpdate({
       sessionId: session.sessionId,
       update: {
         sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: "Changelog not found (couldn't locate pi installation)." }
+        content: { type: 'text', text: `Changelog not found (couldn't locate ${config?.name ?? 'backend'} installation).` }
       }
     })
     return 'end_turn'
@@ -323,18 +401,18 @@ async function handleChangelog(
   return 'end_turn'
 }
 
-function findChangelog(): string | null {
-  // 1) Locate the installed pi package by resolving the `pi` executable.
-  // On Node installs, `pi` typically resolves to .../@mariozechner/pi-coding-agent/dist/cli.js
+function findChangelog(config: BackendConfig): string | null {
+  // 1) Locate the installed package by resolving the backend executable.
+  // On Node installs, this typically resolves to .../<npmPackage>/dist/cli.js
   try {
     const whichCmd = process.platform === 'win32' ? 'where' : 'which'
-    const which = spawnSync(whichCmd, ['pi'], { encoding: 'utf-8' })
-    const piPath = String(which.stdout ?? '')
+    const which = spawnSync(whichCmd, [config.name], { encoding: 'utf-8' })
+    const binPath = String(which.stdout ?? '')
       .split(/\r?\n/)[0]
       ?.trim()
 
-    if (piPath) {
-      const resolved = realpathSync(piPath)
+    if (binPath) {
+      const resolved = realpathSync(binPath)
       const pkgRoot = dirname(dirname(resolved))
       const p = join(pkgRoot, 'CHANGELOG.md')
       if (existsSync(p)) return p
@@ -348,7 +426,9 @@ function findChangelog(): string | null {
     const npmRoot = spawnSync('npm', ['root', '-g'], { encoding: 'utf-8' })
     const root = String(npmRoot.stdout ?? '').trim()
     if (root) {
-      const p = join(root, '@mariozechner', 'pi-coding-agent', 'CHANGELOG.md')
+      // npm package name may be scoped (e.g. @mariozechner/pi-coding-agent) or plain (e.g. gsd).
+      const parts = config.npmPackage.split('/')
+      const p = join(root, ...parts, 'CHANGELOG.md')
       if (existsSync(p)) return p
     }
   } catch {
@@ -360,7 +440,8 @@ function findChangelog(): string | null {
 
 async function handleExport(
   session: PiAcpSession,
-  conn: AgentSideConnection
+  conn: AgentSideConnection,
+  config?: BackendConfig
 ): Promise<StopReason> {
   // For now we always export into the session cwd and do not accept a user-provided path.
   // IMPORTANT: pi's export_html reads the session JSONL file. If it doesn't exist yet
@@ -442,7 +523,8 @@ async function handleExport(
         sessionUpdate: 'agent_message_chunk',
         content: {
           type: 'text',
-          text: 'Export failed: no output path returned by pi.'
+          // [BugFix E] Use active backend name instead of hardcoded "pi".
+        text: `Export failed: no output path returned by ${config?.name ?? 'backend'}.`
         }
       }
     })
@@ -492,14 +574,37 @@ async function handleAutocompact(
   else if (mode === 'off' || mode === 'false' || mode === 'disable' || mode === 'disabled') enabled = false
 
   if (enabled === null) {
-    // toggle: read current state and invert.
-    const rawData = await session.proc.getState()
+    // [BugFix D] Protect getState() in toggle path so a subprocess crash doesn't escape.
+    let rawData: unknown
+    try {
+      rawData = await session.proc.getState()
+    } catch (e: unknown) {
+      await conn.sessionUpdate({
+        sessionId: session.sessionId,
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: { type: 'text', text: `Failed to read auto-compaction state: ${String((e as Error)?.message ?? e)}` }
+        }
+      })
+      return 'end_turn'
+    }
     const state = parseState(rawData)
     const current = Boolean(state?.autoCompactionEnabled)
     enabled = !current
   }
 
-  await session.proc.setAutoCompaction(enabled)
+  try {
+    await session.proc.setAutoCompaction(enabled)
+  } catch (e: unknown) {
+    await conn.sessionUpdate({
+      sessionId: session.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Failed to set auto-compaction: ${String((e as Error)?.message ?? e)}` }
+      }
+    })
+    return 'end_turn'
+  }
 
   await conn.sessionUpdate({
     sessionId: session.sessionId,

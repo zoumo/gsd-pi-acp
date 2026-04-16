@@ -13,8 +13,10 @@ export function readNearestPackageJson(metaUrl: string): {
     for (let i = 0; i < 6; i++) {
       const p = join(dir, 'package.json')
       if (existsSync(p)) {
-        const json = JSON.parse(readFileSync(p, 'utf-8')) as any
-        return { name: json?.name, version: json?.version }
+        const json = JSON.parse(readFileSync(p, 'utf-8')) as Record<string, unknown>
+        const name = typeof json.name === 'string' ? json.name : undefined
+        const version = typeof json.version === 'string' ? json.version : undefined
+        return { name, version }
       }
       dir = dirname(dir)
     }

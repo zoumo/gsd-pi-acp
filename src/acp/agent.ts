@@ -36,6 +36,7 @@ import { buildUpdateNotice, buildStartupInfo } from './startup-info.js'
 import { handleSlashCommand } from './slash-command-dispatcher.js'
 import { parseAvailableModels } from '../pi-rpc/schemas.js'
 import { advertiseCommands, replaySessionHistory } from './session-lifecycle.js'
+import { writeMcpConfig } from './mcp-config.js'
 
 const pkg = readNearestPackageJson(import.meta.url)
 
@@ -50,8 +51,8 @@ function hasTerminalAuthMeta(params: InitializeRequest): boolean {
 
 export class PiAcpAgent implements ACPAgent {
   private readonly conn: AgentSideConnection
-  private readonly store = new SessionStore()
-  private readonly sessions = new SessionManager(this.store)
+  private readonly store: SessionStore
+  private readonly sessions: SessionManager
   private readonly config: BackendConfig
 
   dispose(): void {
@@ -61,10 +62,11 @@ export class PiAcpAgent implements ACPAgent {
   // Remember recent session cwd and use it as the default filter.
   private lastSessionCwd: string | null = null
 
-  constructor(conn: AgentSideConnection, _config?: unknown) {
+  constructor(conn: AgentSideConnection, opts?: { store?: SessionStore }) {
     this.conn = conn
     this.config = getBackendConfig()
-    void _config
+    this.store = opts?.store ?? new SessionStore()
+    this.sessions = new SessionManager(this.store)
   }
 
   async initialize(params: InitializeRequest): Promise<InitializeResponse> {
@@ -173,7 +175,7 @@ export class PiAcpAgent implements ACPAgent {
       const thinking = await getThinkingState(session.proc, { state })
 
       const quietStartup = getQuietStartup(this.config, params.cwd)
-      const updateNotice = buildUpdateNotice()
+      const updateNotice = buildUpdateNotice(this.config)
 
       // If quietStartup is enabled, suppress the full "startup info" prelude, but still surface
       // the "New version available" notice (if any) since it's high-signal and actionable.
@@ -188,13 +190,15 @@ export class PiAcpAgent implements ACPAgent {
             config: this.config
           })
 
-      if (preludeText)
+      // [BugFix F] Add braces to braceless if to avoid misleading indentation.
+      if (preludeText) {
         session.setStartupInfo(preludeText)
+      }
 
-        // Policy: within a single ACP connection (one client window), keep only one live pi subprocess.
-        // This avoids leaking subprocesses when clients start new sessions but don't explicitly close old ones.
-        // It does NOT affect other client windows because they run in separate agent processes.
-        // Note: Tests sometimes stub out `this.sessions`, so guard the call.
+      // Policy: within a single ACP connection (one client window), keep only one live pi subprocess.
+      // This avoids leaking subprocesses when clients start new sessions but don't explicitly close old ones.
+      // It does NOT affect other client windows because they run in separate agent processes.
+      // Note: Tests sometimes stub out `this.sessions`, so guard the call.
       if (typeof this.sessions.closeAllExcept === 'function') {
         this.sessions.closeAllExcept(session.sessionId)
       }
@@ -244,15 +248,44 @@ export class PiAcpAgent implements ACPAgent {
       const argsString = space === -1 ? '' : trimmed.slice(space + 1)
       const args = parseCommandArgs(argsString)
 
-      const stopReason = await handleSlashCommand(session, this.conn, cmd, args)
+      // Reject built-in slash commands while a turn is in flight to avoid
+      // bypassing the per-session serialization model. File-based slash
+      // commands go through session.prompt() and are serialized normally.
+      // Note: typeof guard because some tests inject partial session mocks.
+      if (typeof session.isBusy === 'function' && session.isBusy()) {
+        // [BugFix A] await the rejection message so the client receives it before end_turn.
+        await this.conn.sessionUpdate({
+          sessionId: session.sessionId,
+          update: {
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'text', text: `Cannot run /${cmd} while a prompt is in progress.` }
+          }
+        }).catch(() => { /* client may have gone away */ })
+        return { stopReason: 'end_turn' }
+      }
+
+      const stopReason = await handleSlashCommand(session, this.conn, cmd, args, this.config)
       if (stopReason) return { stopReason }
     }
 
-
     const result = await session.prompt(message, images)
 
-    // ACP StopReason does not include "error"; if pi fails we map to end_turn for now,
-    // unless we know this was a cancellation.
+    // ACP StopReason does not include "error"; if pi fails we map to end_turn,
+    // unless we know this was a cancellation. Surface a visible error message so
+    // the failure is not silently hidden from the user.
+    if (result === 'error' && !session.wasCancelRequested()) {
+      await this.conn.sessionUpdate({
+        sessionId: session.sessionId,
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: {
+            type: 'text',
+            text: 'The backend process encountered an error. The response may be incomplete.'
+          }
+        }
+      }).catch(() => { /* client may have gone away */ })
+    }
+
     const stopReason: StopReason =
       result === 'error' ? (session.wasCancelRequested() ? 'cancelled' : 'end_turn') : result
 
@@ -302,14 +335,8 @@ export class PiAcpAgent implements ACPAgent {
       throw RequestError.invalidParams(`cwd must be an absolute path: ${params.cwd}`)
     }
 
-    // If the client is re-loading a session that is already active, tear down the existing
-    // pi subprocess so we can start fresh and re-advertise commands reliably.
-    // (Some clients may call session/load when restoring from history.)
-    this.sessions.close(params.sessionId)
-
     this.lastSessionCwd = params.cwd
 
-    // MVP: ignore mcpServers.
     // Prefer ACP-created mapping first (fast path), otherwise scan pi sessions dir.
     const stored = this.store.get(params.sessionId)
     const sessionFile = stored?.sessionFile ?? await findPiSessionFile(this.config, params.sessionId, params.cwd)
@@ -319,6 +346,9 @@ export class PiAcpAgent implements ACPAgent {
     }
 
     // Spawn pi and point it directly at the session file.
+    // Important: spawn BEFORE tearing down the current session so the user keeps
+    // their working session if spawn fails.
+    writeMcpConfig(params.cwd, params.mcpServers, this.config)
     let proc: PiRpcProcess
     try {
       proc = await PiRpcProcess.spawn({
@@ -334,8 +364,14 @@ export class PiAcpAgent implements ACPAgent {
       throw e
     }
 
+    // Resolve file commands before tearing down the old session so that any
+    // unexpected failure doesn't leave us with a destroyed session and an
+    // unregistered proc.
     const fileCommands = loadSlashCommands(this.config, params.cwd)
     const enableSkillCommands = getEnableSkillCommands(this.config, params.cwd)
+
+    // Spawn succeeded — now safe to tear down the old session for this sessionId.
+    this.sessions.close(params.sessionId)
 
     const session = this.sessions.getOrCreate(params.sessionId, {
       cwd: params.cwd,
@@ -346,38 +382,47 @@ export class PiAcpAgent implements ACPAgent {
       config: this.config
     })
 
-    // Policy: within a single ACP connection (one Zed window), keep only one live pi subprocess.
-    // Note: Tests sometimes stub out `this.sessions`, so guard the call.
-    if (typeof this.sessions.closeAllExcept === 'function') {
-      this.sessions.closeAllExcept(session.sessionId)
-    }
+    // Wrap the post-spawn section in try/catch so that any failure (e.g. replaySessionHistory,
+    // getModelState, getThinkingState) properly disposes the already-spawned subprocess via
+    // SessionManager.close() instead of leaking it.
+    try {
+      // Policy: within a single ACP connection (one Zed window), keep only one live pi subprocess.
+      // Note: Tests sometimes stub out `this.sessions`, so guard the call.
+      if (typeof this.sessions.closeAllExcept === 'function') {
+        this.sessions.closeAllExcept(session.sessionId)
+      }
 
-    // (Optional) ensure mapping stays fresh.
-    this.store.upsert({
-      sessionId: params.sessionId,
-      cwd: params.cwd,
-      sessionFile
-    })
+      // (Optional) ensure mapping stays fresh.
+      this.store.upsert({
+        sessionId: params.sessionId,
+        cwd: params.cwd,
+        sessionFile
+      })
 
-    // Replay full conversation history.
-    await replaySessionHistory(this.conn, session.sessionId, proc)
+      // Replay full conversation history.
+      await replaySessionHistory(this.conn, session.sessionId, proc)
 
-    const models = await getModelState(proc)
-    const thinking = await getThinkingState(proc)
+      const models = await getModelState(proc)
+      const thinking = await getThinkingState(proc)
 
-    const response = {
-      models,
-      modes: thinking,
-      _meta: {
-        piAcp: {
-          startupInfo: null
+      const response = {
+        models,
+        modes: thinking,
+        _meta: {
+          piAcp: {
+            startupInfo: null
+          }
         }
       }
+
+      advertiseCommands(this.conn, session.sessionId, proc, fileCommands, { enableSkillCommands })
+
+      return response
+    } catch (err) {
+      // Dispose the subprocess and remove the session from the manager so it doesn't leak.
+      this.sessions.close(session.sessionId)
+      throw err
     }
-
-    advertiseCommands(this.conn, session.sessionId, proc, fileCommands, { enableSkillCommands })
-
-    return response
   }
 
   async unstable_setSessionModel(params: { sessionId: string; modelId: string }): Promise<void> {

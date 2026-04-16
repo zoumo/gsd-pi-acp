@@ -52,7 +52,7 @@ async function walkJsonlFiles(dir: string, out: string[]): Promise<void> {
   }
 
   for (const e of entries) {
-    const name = typeof (e as any).name === 'string' ? (e as any).name : String((e as any).name)
+    const name = e.name
     const p = join(dir, name)
     if (e.isDirectory()) await walkJsonlFiles(p, out)
     else if (e.isFile() && name.endsWith('.jsonl')) out.push(p)

@@ -8,18 +8,18 @@ import { isSemver, compareSemver } from './model-utils.js'
  * Check for newer pi/gsd version on npm registry.
  * Returns update notice string if newer version available, null otherwise.
  */
-export function buildUpdateNotice(): string | null {
+export function buildUpdateNotice(config: BackendConfig): string | null {
   // Best-effort update check against npm registry.
   // Important: keep it fast to not slow down session/new.
   try {
-    const piVersion = spawnSync('pi', ['--version'], { encoding: 'utf-8' })
-    const installed = String(piVersion.stdout ?? '')
+    const versionResult = spawnSync(config.name, ['--version'], { encoding: 'utf-8' })
+    const installed = String(versionResult.stdout ?? '')
       .trim()
       .replace(/^v/i, '')
 
     if (!installed || !isSemver(installed)) return null
 
-    const latestRes = spawnSync('npm', ['view', '@mariozechner/pi-coding-agent', 'version'], {
+    const latestRes = spawnSync('npm', ['view', config.npmPackage, 'version'], {
       encoding: 'utf-8',
       timeout: 800
     })
@@ -30,7 +30,7 @@ export function buildUpdateNotice(): string | null {
     if (!latest || !isSemver(latest)) return null
     if (compareSemver(latest, installed) <= 0) return null
 
-    return `New version available: v${latest} (installed v${installed}). Run: \`npm i -g @mariozechner/pi-coding-agent\``
+    return `New version available: v${latest} (installed v${installed}). Run: \`npm i -g ${config.npmPackage}\``
   } catch {
     return null
   }
@@ -135,12 +135,6 @@ export function buildStartupInfo(opts: {
   const skillsDirs = opts.config.skillsDirs(opts.cwd)
   for (const dir of skillsDirs) {
     pushSkillFromRoot(dir)
-  }
-
-  // Also support ~/.agents/skills for pi (legacy pi skill discovery)
-  if (opts.config.name === 'pi') {
-    const legacyAgentsSkillsDir = join(process.env.HOME ?? '', '.agents', 'skills')
-    pushSkillFromRoot(legacyAgentsSkillsDir)
   }
 
   addSection('Skills', skillsItems)

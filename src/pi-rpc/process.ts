@@ -4,6 +4,7 @@ import { getPiCommand, shouldUseShellForPiCommand } from './command.js'
 import type { BackendConfig } from '../backend/config.js'
 import { getSpawnArgs } from '../backend/config.js'
 import { debugLog } from '../logger.js'
+import { parseState } from './schemas.js'
 
 /** RPC timeout in milliseconds. Configurable via PI_ACP_RPC_TIMEOUT_MS env var. */
 function getRpcTimeoutMs(): number {
@@ -16,10 +17,9 @@ export class PiRpcSpawnError extends Error {
   code?: string
 
   constructor(message: string, opts?: { code?: string; cause?: unknown }) {
-    super(message)
+    super(message, { cause: opts?.cause })
     this.name = 'PiRpcSpawnError'
     this.code = opts?.code
-    ;(this as any).cause = opts?.cause
   }
 }
 
@@ -194,11 +194,22 @@ export class PiRpcProcess {
       try {
         msg = JSON.parse(line)
       } catch {
-        // pi may emit a human-readable prelude on stdout before NDJSON starts.
-        // Capture it so the ACP adapter can surface it on session start.
-        const cleaned = stripAnsi(String(line)).trimEnd()
-        if (cleaned) this.preludeLines.push(cleaned)
-        return
+        // gsd may prepend OSC terminal escape sequences (e.g. \x1b]777;notify;...\x07)
+        // to NDJSON lines like agent_start / agent_end. Try extracting JSON from
+        // the first '{' before falling back to prelude handling.
+        const braceIdx = line.indexOf('{')
+        if (braceIdx > 0) {
+          try {
+            msg = JSON.parse(line.substring(braceIdx))
+          } catch {
+            // still not valid JSON — fall through to prelude
+          }
+        }
+        if (!msg) {
+          const cleaned = stripAnsi(String(line)).trimEnd()
+          if (cleaned) this.preludeLines.push(cleaned)
+          return
+        }
       }
 
       if (msg?.type === 'response') {
@@ -207,22 +218,34 @@ export class PiRpcProcess {
           const pending = this.pending.get(id)
           if (pending) {
             this.pending.delete(id)
-            debugLog(`response received: type=${msg.command ?? 'unknown'} id=${id}`)
+            debugLog(`response received: cmd=${msg.command ?? 'unknown'} id=${id} success=${msg.success} ${msg.error ? 'error=' + msg.error : ''}${msg.data ? ' data=' + truncate(JSON.stringify(msg.data), 300) : ''}`)
             pending.resolve(msg as PiRpcResponse)
             return
           }
         }
       }
 
-      for (const h of this.eventHandlers) h(msg as PiRpcEvent)
+      debugLog(`event received: ${summariseEvent(msg)}`)
+
+      // Snapshot + try/catch: defensive against handler removal during iteration
+      // and ensures a throwing handler doesn't prevent other handlers from running.
+      const handlers = [...this.eventHandlers]
+      for (const h of handlers) {
+        try {
+          h(msg as PiRpcEvent)
+        } catch {
+          // swallow — event handler exceptions must not break RPC line processing
+        }
+      }
     })
 
     child.on('exit', (code, signal) => {
       debugLog(`pi process exit: code=${code ?? 'null'} signal=${signal ?? 'null'}`)
       // Emit process_exit event so Session can clean up editSnapshots.
-      // Wrap each handler in try/catch so a throwing handler doesn't prevent
+      // Snapshot + try/catch so a throwing handler doesn't prevent
       // pending promise rejection (#5).
-      for (const h of this.eventHandlers) {
+      const exitHandlers = [...this.eventHandlers]
+      for (const h of exitHandlers) {
         try {
           h({ type: 'process_exit', code, signal })
         } catch {
@@ -318,7 +341,7 @@ export class PiRpcProcess {
     // that is created lazily. Create the parent dir up-front to avoid later parse errors
     // when we call commands like export_html.
     try {
-      const state = (await proc.getState()) as any
+      const state = parseState(await proc.getState())
       const sessionFile = typeof state?.sessionFile === 'string' ? state.sessionFile : null
       if (sessionFile) {
         const { mkdirSync } = await import('node:fs')
@@ -349,7 +372,7 @@ export class PiRpcProcess {
 
     if (this.child.killed) return
     try {
-      this.child.kill(signal as any)
+      this.child.kill(signal)
     } catch {
       // ignore
     }
@@ -441,7 +464,7 @@ export class PiRpcProcess {
     const withId = { ...cmd, id }
 
     const line = JSON.stringify(withId) + '\n'
-    debugLog(`request send: type=${cmd.type} id=${id}`)
+    debugLog(`request send: ${truncate(line, 500)}`)
 
     return new Promise<PiRpcResponse>((resolve, reject) => {
       let settled = false
@@ -482,5 +505,44 @@ export class PiRpcProcess {
         doReject(e)
       }
     })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Debug logging helpers
+// ---------------------------------------------------------------------------
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '…' : s
+}
+
+/** Produce a concise one-line summary for a pi/gsd event. */
+function summariseEvent(ev: any): string {
+  const type: string = ev?.type ?? 'unknown'
+
+  switch (type) {
+    case 'message_update': {
+      const ame = ev.assistantMessageEvent
+      const ameType = ame?.type ?? '?'
+      const delta = typeof ame?.delta === 'string' ? truncate(ame.delta, 80) : ''
+      return `message_update ame.type=${ameType}${delta ? ' delta=' + JSON.stringify(delta) : ''}`
+    }
+    case 'tool_execution_start':
+      return `tool_execution_start tool=${ev.toolName ?? '?'} id=${ev.toolCallId ?? '?'} args=${truncate(JSON.stringify(ev.args ?? {}), 200)}`
+    case 'tool_execution_update':
+      return `tool_execution_update id=${ev.toolCallId ?? '?'} partial=${truncate(JSON.stringify(ev.partialResult ?? ''), 200)}`
+    case 'tool_execution_end':
+      return `tool_execution_end id=${ev.toolCallId ?? '?'} isError=${ev.isError ?? false} result=${truncate(JSON.stringify(ev.result ?? ''), 200)}`
+    case 'agent_start':
+    case 'agent_end':
+    case 'turn_end':
+    case 'turn_start':
+      return type
+    case 'auto_retry_start':
+      return `auto_retry_start attempt=${ev.attempt}/${ev.maxAttempts} delay=${ev.delayMs}ms`
+    case 'extension_ui_request':
+      return `extension_ui_request method=${ev.method ?? '?'}`
+    default:
+      return `${type} ${truncate(JSON.stringify(ev), 200)}`
   }
 }

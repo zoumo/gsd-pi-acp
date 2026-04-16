@@ -30,8 +30,9 @@ export function hasAnyPiAuthConfigured(config: BackendConfig): boolean {
   const models = safeReadJson(modelsPath)
   const providers = models?.providers
   if (providers && typeof providers === 'object') {
-    for (const p of Object.values(providers as Record<string, any>)) {
-      if (p && typeof p === 'object' && typeof (p as any).apiKey === 'string' && (p as any).apiKey.trim()) {
+    for (const p of Object.values(providers as Record<string, unknown>)) {
+      const provider = p as Record<string, unknown>
+      if (provider && typeof provider === 'object' && typeof provider.apiKey === 'string' && provider.apiKey.trim()) {
         // Note: pi treats a non-empty string as either env-var name OR literal secret.
         // So presence of apiKey config is enough to be considered "auth configured".
         return true

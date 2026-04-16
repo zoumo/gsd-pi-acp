@@ -30,7 +30,7 @@ export function advertiseCommands(
         const pi = parseCommands(rawCommands)
         const { commands } = toAvailableCommandsFromPiGetCommands(pi, {
           enableSkillCommands: opts.enableSkillCommands,
-          includeExtensionCommands: false
+          includeExtensionCommands: true
         })
 
         await conn.sessionUpdate({

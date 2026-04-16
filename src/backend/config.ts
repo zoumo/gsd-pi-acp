@@ -55,6 +55,9 @@ export interface BackendConfig {
 
   /** Whether to use shell for spawning (Windows .cmd/.bat files) */
   readonly useShell: (cmd: string) => boolean
+
+  /** npm package name for version checks and changelog lookup */
+  readonly npmPackage: string
 }
 
 /**
@@ -80,6 +83,7 @@ function gsdConfig(): BackendConfig {
       join(cwd, '.gsd', 'skills') // project skills
     ],
     spawnArgs: ['--mode', 'rpc'], // gsd doesn't support --no-themes
+    npmPackage: 'gsd',
     useShell: (cmd: string) => {
       if (!isWin) return false
       const normalized = cmd.trim().toLowerCase()
@@ -113,6 +117,7 @@ export function piConfig(): BackendConfig {
       join(cwd, '.pi', 'skills') // project skills
     ],
     spawnArgs: ['--mode', 'rpc', '--no-themes'],
+    npmPackage: '@mariozechner/pi-coding-agent',
     useShell: (cmd: string) => {
       if (!isWin) return false
       const normalized = cmd.trim().toLowerCase()
@@ -131,6 +136,21 @@ function isCommandAvailable(cmd: string): boolean {
 }
 
 /**
+ * Cached result of getBackendCommand(). Avoids repeated spawnSync calls for
+ * auto-detection. Both env-override and auto-detect results are cached since
+ * neither changes at runtime in production.
+ */
+let cachedBackendCommand: { command: string; backend: BackendName; autoDetected: boolean } | null = null
+
+/**
+ * Reset the backend command cache. Test-only — needed when tests override
+ * PI_ACP_PI_COMMAND between test cases (K009 pattern).
+ */
+export function _resetBackendCache(): void {
+  cachedBackendCommand = null
+}
+
+/**
  * Get the backend command to use.
  *
  * Resolution order:
@@ -138,8 +158,12 @@ function isCommandAvailable(cmd: string): boolean {
  * 2. Auto-detect: try 'gsd' first, fallback to 'pi'
  *
  * Returns the command string and whether it was auto-detected.
+ * Result is cached — call _resetBackendCache() in tests that change env vars.
  */
 export function getBackendCommand(): { command: string; backend: BackendName; autoDetected: boolean } {
+  if (cachedBackendCommand) {
+    return cachedBackendCommand
+  }
   const envOverride = process.env.PI_ACP_PI_COMMAND
 
   if (envOverride) {
@@ -147,7 +171,8 @@ export function getBackendCommand(): { command: string; backend: BackendName; au
     const cmd = envOverride.trim()
     const backend: BackendName = basename(cmd).toLowerCase().startsWith('gsd') ? 'gsd' : 'pi'
     debugLog(`backend command: env override=${cmd} inferred backend=${backend}`)
-    return { command: cmd, backend, autoDetected: false }
+    cachedBackendCommand = { command: cmd, backend, autoDetected: false }
+    return cachedBackendCommand
   }
 
   // Auto-detect: try gsd first, then pi
@@ -156,11 +181,13 @@ export function getBackendCommand(): { command: string; backend: BackendName; au
 
   if (isCommandAvailable(gsd.defaultCommand)) {
     debugLog(`backend command: auto-detected gsd (command=${gsd.defaultCommand})`)
-    return { command: gsd.defaultCommand, backend: 'gsd', autoDetected: true }
+    cachedBackendCommand = { command: gsd.defaultCommand, backend: 'gsd', autoDetected: true }
+    return cachedBackendCommand
   }
 
   debugLog(`backend command: auto-detected pi (command=${pi.defaultCommand}, gsd not available)`)
-  return { command: pi.defaultCommand, backend: 'pi', autoDetected: true }
+  cachedBackendCommand = { command: pi.defaultCommand, backend: 'pi', autoDetected: true }
+  return cachedBackendCommand
 }
 
 /**

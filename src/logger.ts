@@ -12,7 +12,7 @@ let dirEnsured = false
  * Appends ISO timestamp + message to the debug log file.
  * Never throws - errors are silently swallowed to avoid disrupting the caller.
  *
- * Log path: ~/.gsd/gsd-pi-acp/debug.log (default)
+ * Log path: ~/.gsd/gsd-pi-acp/debug-{pid}-{YYYY-MM-DD}.log (default)
  * Override: PI_ACP_DEBUG_LOG_PATH env var
  */
 export function debugLog(message: string): void {

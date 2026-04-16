@@ -36,16 +36,16 @@ export function promptToPiMessage(blocks: ContentBlock[]): {
 
       case 'resource': {
         // Clients should not send this if embeddedContext=false, but be resilient.
-        const r: any = (b as any).resource
-        const uri = typeof r?.uri === 'string' ? r.uri : '(unknown)'
+        const r = b.resource
+        const uri = r.uri
 
-        if (typeof r?.text === 'string') {
+        if ('text' in r) {
           // TextResourceContents
-          const mime = typeof r?.mimeType === 'string' ? r.mimeType : 'text/plain'
+          const mime = r.mimeType ?? 'text/plain'
           message += `\n[Embedded Context] ${uri} (${mime})\n${r.text}`
-        } else if (typeof r?.blob === 'string') {
+        } else if ('blob' in r) {
           // BlobResourceContents
-          const mime = typeof r?.mimeType === 'string' ? r.mimeType : 'application/octet-stream'
+          const mime = r.mimeType ?? 'application/octet-stream'
           const bytes = Buffer.byteLength(r.blob, 'base64')
           message += `\n[Embedded Context] ${uri} (${mime}, ${bytes} bytes)`
         } else {

@@ -12,9 +12,11 @@ import { maybeAuthRequiredError } from './auth-required.js'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { PiRpcProcess, PiRpcSpawnError, type PiRpcEvent } from '../pi-rpc/process.js'
+import { parseState } from '../pi-rpc/schemas.js'
 import { SessionStore } from './session-store.js'
 import { toolResultToText } from './translate/pi-tools.js'
 import { expandSlashCommand, type FileSlashCommand } from './slash-commands.js'
+import { writeMcpConfig } from './mcp-config.js'
 import { debugLog } from '../logger.js'
 import type { BackendConfig } from '../backend/config.js'
 
@@ -125,6 +127,7 @@ export class SessionManager {
   async create(params: SessionCreateParams): Promise<PiAcpSession> {
     // Let pi manage session persistence in its default location (~/.pi/agent/sessions/...)
     // so sessions are visible to the regular `pi` CLI.
+    writeMcpConfig(params.cwd, params.mcpServers, params.config)
     let proc: PiRpcProcess
     try {
       proc = await PiRpcProcess.spawn({
@@ -139,9 +142,9 @@ export class SessionManager {
       throw e
     }
 
-    let state: any = null
+    let state: import('../pi-rpc/schemas.js').StateData | null = null
     try {
-      state = (await proc.getState()) as any
+      state = parseState(await proc.getState())
     } catch {
       state = null
     }
@@ -363,7 +366,13 @@ export class PiAcpSession {
     return this.cancelRequested
   }
 
+  /** Whether a turn is currently in flight (prompt running or queued). */
+  isBusy(): boolean {
+    return this.pendingTurn !== null
+  }
+
   private emit(update: SessionUpdate): void {
+    debugLog(`acp emit: ${summariseAcpUpdate(update)}`)
     // Serialize update delivery.
     this.lastEmit = this.lastEmit
       .then(() =>
@@ -446,61 +455,37 @@ export class PiAcpSession {
           break
         }
 
-        // Surface tool calls ASAP so clients (e.g. Zed) can show a tool-in-use/loading UI
-        // while the model is still streaming tool call args.
+        // Surface tool calls early so clients can show a loading UI.
+        // Only emit on toolcall_start (first sighting). Skip toolcall_delta/toolcall_end
+        // to avoid flooding the client with redundant pending updates while the model
+        // streams tool call arguments. tool_execution_start will provide final args.
         if (ame?.type === 'toolcall_start' || ame?.type === 'toolcall_delta' || ame?.type === 'toolcall_end') {
           const toolCall =
-            // pi sometimes includes the tool call directly on the event
             ame.toolCall ??
-            // ...and always includes it in the partial assistant message at contentIndex
             ame.partial?.content?.[ame.contentIndex ?? 0]
 
           const toolCallId = String(toolCall?.id ?? '')
           const toolName = String(toolCall?.name ?? 'tool')
 
-          if (toolCallId) {
+          if (toolCallId && !this.currentToolCalls.has(toolCallId)) {
             const rawInput =
               toolCall?.arguments && typeof toolCall.arguments === 'object'
                 ? toolCall.arguments
-                : (() => {
-                    const s = String(toolCall?.partialArgs ?? '')
-                    if (!s) return undefined
-                    try {
-                      return JSON.parse(s)
-                    } catch {
-                      return { partialArgs: s }
-                    }
-                  })()
+                : undefined
 
             const locations = toToolCallLocations(rawInput, this.cwd)
-            const existingStatus = this.currentToolCalls.get(toolCallId)
-            // IMPORTANT: never downgrade status (e.g. if we already marked in_progress via tool_execution_start).
-            const status = existingStatus ?? 'pending'
-
-            if (!existingStatus) {
-              this.currentToolCalls.set(toolCallId, 'pending')
-              this.emit({
-                sessionUpdate: 'tool_call',
-                toolCallId,
-                title: toolName,
-                kind: toToolKind(toolName),
-                status,
-                locations,
-                rawInput
-              })
-            } else {
-              // Best-effort: keep rawInput updated while args are streaming.
-              // Keep the existing status (pending or in_progress).
-              this.emit({
-                sessionUpdate: 'tool_call_update',
-                toolCallId,
-                status,
-                locations,
-                rawInput
-              })
-            }
+            this.currentToolCalls.set(toolCallId, 'pending')
+            this.emit({
+              sessionUpdate: 'tool_call',
+              toolCallId,
+              title: toolName,
+              kind: toToolKind(toolName),
+              status: 'pending',
+              locations,
+              rawInput
+            })
           }
-
+          // Already known — skip. tool_execution_start handles the transition.
           break
         }
 
@@ -751,5 +736,40 @@ function toToolKind(toolName: string): ToolKind {
       return 'other'
     default:
       return 'other'
+  }
+}
+
+function truncateStr(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '…' : s
+}
+
+/** Produce a concise one-line summary of a sessionUpdate sent to the ACP client. */
+function summariseAcpUpdate(u: SessionUpdate): string {
+  const kind = u.sessionUpdate
+  switch (kind) {
+    case 'agent_message_chunk': {
+      const c = (u as any).content
+      const text = typeof c?.text === 'string' ? truncateStr(c.text, 120) : ''
+      return `agent_message_chunk ${JSON.stringify(text)}`
+    }
+    case 'agent_thought_chunk': {
+      const c = (u as any).content
+      const text = typeof c?.text === 'string' ? truncateStr(c.text, 80) : ''
+      return `agent_thought_chunk ${JSON.stringify(text)}`
+    }
+    case 'tool_call': {
+      const a = u as any
+      return `tool_call id=${a.toolCallId} title=${a.title} kind=${a.kind} status=${a.status}`
+    }
+    case 'tool_call_update': {
+      const a = u as any
+      return `tool_call_update id=${a.toolCallId} status=${a.status}`
+    }
+    case 'session_info_update': {
+      const meta = (u as any)._meta
+      return `session_info_update ${truncateStr(JSON.stringify(meta ?? {}), 200)}`
+    }
+    default:
+      return kind
   }
 }

@@ -14,7 +14,7 @@ export function getPiAcpSessionMapPath(): string {
 /**
  * Debug log path for gsd-pi-acp.
  *
- * Default: ~/.gsd/gsd-pi-acp/debug.log (homedir-derived)
+ * Default: ~/.gsd/gsd-pi-acp/debug-{pid}-{YYYY-MM-DD}.log (homedir-derived)
  * Override: PI_ACP_DEBUG_LOG_PATH env var
  *
  * Validates that the path is absolute and contains no path traversal
@@ -34,8 +34,8 @@ export function getGsdPiAcpDebugLogPath(): string {
     return override
   }
 
-  // Default path: ~/.gsd/gsd-pi-acp/debug.log (homedir-derived)
-  return join(homedir(), '.gsd', 'gsd-pi-acp', 'debug.log')
+  const date = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  return join(homedir(), '.gsd', 'gsd-pi-acp', `debug-${process.pid}-${date}.log`)
 }
 
 /**

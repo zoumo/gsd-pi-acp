@@ -120,19 +120,21 @@ export function isSemver(v: string): boolean {
 }
 
 export function compareSemver(a: string, b: string): number {
-  const pa = a
-    .split(/[.-]/)
-    .slice(0, 3)
-    .map(n => Number(n))
-  const pb = b
-    .split(/[.-]/)
-    .slice(0, 3)
-    .map(n => Number(n))
+  // Strip pre-release suffix for numeric comparison, then compare pre-release presence.
+  const coreA = a.split('-')[0]
+  const coreB = b.split('-')[0]
+  const pa = coreA.split('.').map(n => Number(n))
+  const pb = coreB.split('.').map(n => Number(n))
   for (let i = 0; i < 3; i++) {
     const da = pa[i] ?? 0
     const db = pb[i] ?? 0
     if (da > db) return 1
     if (da < db) return -1
   }
+  // Numeric parts equal — pre-release is lower than release (e.g. 1.0.0-alpha < 1.0.0)
+  const aHasPre = a.includes('-')
+  const bHasPre = b.includes('-')
+  if (aHasPre && !bHasPre) return -1
+  if (!aHasPre && bHasPre) return 1
   return 0
 }

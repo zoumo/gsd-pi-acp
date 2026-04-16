@@ -20,7 +20,8 @@ if (process.argv.includes('--terminal-login')) {
     shell: shouldUseShellForPiCommand(cmd)
   })
 
-  if ((res as any).error && (res as any).error.code === 'ENOENT') {
+  const err = res.error as NodeJS.ErrnoException | undefined
+  if (err?.code === 'ENOENT') {
     process.stderr.write(
       `pi-acp: could not start pi (command not found: ${cmd}). Install it via \`npm install -g @mariozechner/pi-coding-agent\` or ensure \`pi\` is on your PATH.\n`
     )
@@ -52,7 +53,11 @@ const _agent = new AgentSideConnection(conn => {
   return acpAgent
 }, stream)
 
+let shuttingDown = false
+
 function shutdown() {
+  if (shuttingDown) return
+  shuttingDown = true
   debugLog('shutdown')
   try {
     // Best-effort: dispose session subprocesses when the client disconnects.

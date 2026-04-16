@@ -14,6 +14,7 @@ import { z } from 'zod'
 export interface StateData {
   thinkingLevel?: string
   model?: { provider?: string; id?: string } & Record<string, unknown>
+  sessionId?: string
   sessionFile?: string
   messageCount?: number
   autoCompactionEnabled?: boolean
@@ -74,6 +75,7 @@ const StateSchema = z
   .object({
     thinkingLevel: z.string().optional(),
     model: ModelInfoSchema.optional(),
+    sessionId: z.string().optional(),
     sessionFile: z.string().optional(),
     messageCount: z.number().optional(),
     autoCompactionEnabled: z.boolean().optional(),
