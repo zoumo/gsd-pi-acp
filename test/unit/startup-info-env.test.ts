@@ -12,6 +12,9 @@ class FakeSessions {
 
 test('PiAcpAgent: quietStartup=true disables startup info generation/emission', async () => {
   const prevAgentDir = process.env.PI_CODING_AGENT_DIR
+  // Set a fake API key so auth check passes in CI where no real keys exist.
+  const prevApiKey: string | undefined = process.env.ANTHROPIC_API_KEY
+  if (!process.env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = 'test-key'
 
   // Force quietStartup in pi settings by pointing PI_CODING_AGENT_DIR at a temp dir.
   const { mkdtempSync, writeFileSync } = await import('node:fs')
@@ -70,5 +73,7 @@ test('PiAcpAgent: quietStartup=true disables startup info generation/emission', 
     ;(globalThis as any).setTimeout = realSetTimeout
     if (prevAgentDir == null) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = prevAgentDir
+    if (prevApiKey == null) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = prevApiKey
   }
 })
