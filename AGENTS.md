@@ -1,5 +1,9 @@
 # Agent Guide
 
+## Branch
+
+Main branch: `gsd-main` (not `main`)
+
 ## Project Intelligence
 
 Reference files for architecture, decisions, conventions, and design:
