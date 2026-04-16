@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { PiAcpAgent } from '../../src/acp/agent.js'
+import { _resetBackendCache } from '../../src/backend/config.js'
 import { FakeAgentSideConnection, asAgentConn } from '../helpers/fakes.js'
 
 class FakeSessions {
@@ -16,7 +17,7 @@ test('PiAcpAgent: quietStartup=true disables startup info generation/emission', 
   const prevApiKey: string | undefined = process.env.ANTHROPIC_API_KEY
   if (!process.env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = 'test-key'
 
-  // Force quietStartup in pi settings by pointing PI_CODING_AGENT_DIR at a temp dir.
+  // Create a temp dir with settings.json containing quietStartup: true
   const { mkdtempSync, writeFileSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
@@ -58,7 +59,15 @@ test('PiAcpAgent: quietStartup=true disables startup info generation/emission', 
       }
     }
 
+    _resetBackendCache()
     const agent = new PiAcpAgent(asAgentConn(conn), {} as any)
+
+    // Override config.settingsPath so getMergedSettings() reads from our temp dir.
+    // The default settingsPath is hardcoded to ~/.pi/agent/settings.json (or ~/.gsd/settings.json)
+    // and doesn't respect PI_CODING_AGENT_DIR, so we patch it directly.
+    const cfg = (agent as any).config
+    ;(agent as any).config = { ...cfg, settingsPath: join(dir, 'settings.json') }
+
     ;(agent as any).sessions = new FakeSessions(session) as any
 
     const res = await agent.newSession({ cwd: process.cwd(), mcpServers: [] } as any)
@@ -71,6 +80,7 @@ test('PiAcpAgent: quietStartup=true disables startup info generation/emission', 
     assert.equal(timeouts.length, 1)
   } finally {
     ;(globalThis as any).setTimeout = realSetTimeout
+    _resetBackendCache()
     if (prevAgentDir == null) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = prevAgentDir
     if (prevApiKey == null) delete process.env.ANTHROPIC_API_KEY
