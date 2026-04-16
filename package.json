@@ -1,6 +1,6 @@
 {
   "name": "@zoumo/gsd-pi-acp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ACP adapter for gsd and pi coding agents with dual backend support",
   "license": "MIT",
   "author": "Zoumo <jim.zoumo@gmail.com>",
