@@ -11,23 +11,33 @@ dist
 .DS_Store
 .bg-shell
 
-# ── GSD baseline (auto-generated) ──
+# ── GSD runtime state (auto-generated) ──
 .gsd/auto.lock
 .gsd/completed-units.json
 .gsd/completed-units*.json
 .gsd/state-manifest.json
 .gsd/STATE.md
 .gsd/metrics.json
-.gsd/activity/
-.gsd/runtime/
-.gsd/worktrees/
-.gsd/milestones/**/continue.md
-.gsd/milestones/**/*-CONTINUE.md
+.gsd/hook-state.json
+.gsd/notifications.jsonl
 .gsd/gsd.db*
-.gsd/journal
 .gsd/doctor-history.jsonl
 .gsd/event-log.jsonl
+.gsd/activity/
+.gsd/journal/
+.gsd/runtime/
+.gsd/worktrees/
 .gsd/reports/
+.gsd/milestones/**/continue.md
+.gsd/milestones/**/*-CONTINUE.md
+.gsd/milestones/**/gsd.db*
+.gsd/milestones/**/*-META.json
+.gsd/milestones/**/*-VERIFY.json
+.gsd/milestones/**/*-PRE-EXEC-VERIFY.json
+.gsd/milestones/**/anchors/
+.gsd-id
+.gsd/mcp.json
+.gsd/CODEBASE.md
 
 Thumbs.db
 *.swp
@@ -55,3 +65,6 @@ tmp/
 
 # ── GSD baseline (auto-generated) ──
 .gsd-id
+
+# ── GSD baseline (auto-generated) ──
+.bg-shell/
