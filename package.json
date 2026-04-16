@@ -1,21 +1,21 @@
 {
-  "name": "gsd-pi-acp",
-  "version": "0.0.24",
+  "name": "@zoumo/gsd-pi-acp",
+  "version": "0.1.0",
   "description": "ACP adapter for gsd and pi coding agents with dual backend support",
   "license": "MIT",
-  "author": "Sergii Kozak <svkozak@gmail.com>",
+  "author": "Zoumo <jim.zoumo@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/svkozak/gsd-pi-acp.git"
+    "url": "https://github.com/zoumo/gsd-pi-acp.git"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "bugs": {
-    "url": "https://github.com/svkozak/gsd-pi-acp/issues"
+    "url": "https://github.com/zoumo/gsd-pi-acp/issues"
   },
-  "homepage": "https://github.com/svkozak/gsd-pi-acp#readme",
+  "homepage": "https://github.com/zoumo/gsd-pi-acp#readme",
   "keywords": [
     "acp",
     "agent-client-protocol",

@@ -54,6 +54,6 @@ function terminalAuthLaunchSpec(): { command: string; args: string[] } {
     }
   }
 
-  // Fallback: assume `pi-acp` is on PATH.
-  return { command: 'pi-acp', args: ['--terminal-login'] }
+  // Fallback: assume `gsd-pi-acp` is on PATH.
+  return { command: 'gsd-pi-acp', args: ['--terminal-login'] }
 }

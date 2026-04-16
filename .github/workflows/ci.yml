@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [gsd-main]
   pull_request:
-    branches: [main]
+    branches: [gsd-main]
 
 permissions:
   contents: read

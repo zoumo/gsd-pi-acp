@@ -23,5 +23,5 @@ export function readNearestPackageJson(metaUrl: string): {
   } catch {
     // ignore
   }
-  return { name: 'pi-acp', version: '0.0.0' }
+  return { name: 'gsd-pi-acp', version: '0.0.0' }
 }
