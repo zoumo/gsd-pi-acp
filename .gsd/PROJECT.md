@@ -10,21 +10,21 @@ ACP (Agent Client Protocol) adapter for `gsd` and `pi` coding agents. Runs as an
 
 - **Working**: Robust ACP adapter with dual backend support (gsd primary, pi fallback), subprocess timeout handling, clean shutdown, debug logging, CI gates, comprehensive test coverage
 - **Backend**: Defaults to `gsd` if available, falls back to `pi`, override via `PI_ACP_PI_COMMAND`
-- **Test coverage**: 124 tests passing
+- **Test coverage**: 134 tests passing, 0 type errors, 0 as-any casts in src/
 - **M001-ljn52j Complete**: Core robustness — RPC timeout, clean shutdown, queue limit, BackendConfig abstraction, CI workflow, agent.ts decomposition, Zod schemas
 - **M002-bkli1x Complete**: Verification — confirmed all P1-P3 code review findings already addressed
 - **M003 Complete**: Code hygiene — removed 30+ dead exports/legacy functions (1086 lines), defined PiRpcEvent discriminated union (as-any: 51→12), converted pi-sessions.ts to async fs/promises
-- **M004 In Progress**: Code review remediation — S01 complete (hang/leak fixes), S02 complete (correctness bugs), S03 complete (false-confidence test repairs: merge-commands, stdout-destroyed, queue-overflow). S04 remaining (operational/performance improvements and cleanup).
+- **M004 Complete**: Code review remediation — closed 4 hang/leak paths, fixed 4 correctness bugs, repaired 3 false-confidence tests, cached backend detection, idempotent shutdown, hardened compareSemver/event iteration, eliminated all 12 remaining as-any casts (0 total)
 
 ## Architecture
 
 ```
 src/
-  index.ts          - ACP entrypoint, spawns PiAcpAgent, backend detection
+  index.ts          - ACP entrypoint, spawns PiAcpAgent, backend detection, idempotent shutdown
   stdout-writer.ts  - Extracted stdout writer (side-effect-free, testable)
   logger.ts         - Fire-and-forget debug logger (opt-in PI_ACP_DEBUG_LOG)
   backend/
-    config.ts       - BackendConfig abstraction (gsd vs pi paths, spawn args, auto-detection)
+    config.ts       - BackendConfig abstraction (gsd vs pi paths, spawn args, cached auto-detection)
   acp/
     agent.ts        - ACP protocol handler (~430 lines)
     session.ts      - Session manager, turn queue, event handling with typed PiRpcEvent
@@ -36,14 +36,14 @@ src/
     slash-commands.ts - File-based slash command loader (backend-specific prompts)
     builtin-commands.ts - Built-in slash commands (/steering, /name)
     pkg-utils.ts    - Package.json reading utilities
-    model-utils.ts  - Thinking/model state helpers with Zod parsing
+    model-utils.ts  - Thinking/model state helpers with Zod parsing, compareSemver with pre-release support
     startup-info.ts - buildStartupInfo, buildUpdateNotice
     slash-command-dispatcher.ts - Slash command handling (/compact, /export, /session, etc.)
     session-lifecycle.ts - Session lifecycle helpers (advertiseCommands, replayHistory)
   pi-rpc/
-    process.ts      - Spawn subprocess, NDJSON RPC, typed PiRpcEvent discriminated union
+    process.ts      - Spawn subprocess, NDJSON RPC, typed PiRpcEvent, hardened event handler iteration
     command.ts      - Resolve pi/gsd executable path
-    schemas.ts      - Zod schemas for RPC responses
+    schemas.ts      - Zod schemas for RPC responses (StateData with sessionId)
   pi-auth/
     status.ts       - Check if backend has auth configured
 ```
@@ -58,8 +58,19 @@ src/
 
 ## Test Strategy
 
-Node test runner with tsx. Unit tests use FakeChildProcess helper for subprocess mocking. CI gates via .github/workflows/ci.yml: typecheck + lint + test jobs in parallel on every push/PR. Runtime env var override pattern (getter functions) enables testing timeout/queue limits.
+- 134 tests across unit and component test files
+- Process lifecycle tests (dispose, crash recovery) use node:assert/strict
+- Backend detection tests reset cache via `_resetBackendCache()` between cases
+- compareSemver tests cover pre-release ordering
+- Queue overflow tests use try/finally for env var cleanup
+- False-confidence tests eliminated — all tests import real production code
+- CI gates: tsc --noEmit + eslint + npm test
 
-## Known Issues
+## Type Safety
 
-None.
+- 0 `as any` casts in src/ (down from 72 at project start)
+- Zod schemas for all RPC response parsing
+- PiRpcEvent discriminated union for typed event handling
+- ES2022 Error.cause via super() instead of manual assignment
+- StateData interface includes sessionId for typed access
+- SDK ContentBlock union narrowing for resource handling
