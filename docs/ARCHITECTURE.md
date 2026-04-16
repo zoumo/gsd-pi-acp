@@ -1,7 +1,7 @@
 # Architecture
 
 > Auto-generated. Do not edit directly.
-> Last updated: 2026-04-07 after M003
+> Last updated: 2026-04-17 after M004
 
 ## System Overview
 
@@ -15,16 +15,18 @@ ACP Client (Zed) ──stdio JSON-RPC──▸ gsd-pi-acp ──NDJSON RPC──
 
 ```
 src/
-├── index.ts                 Entry: stdio transport, signal handling, graceful shutdown
+├── index.ts                 Entry: stdio transport, signal handling, idempotent graceful shutdown
 ├── logger.ts                Fire-and-forget debug logger (PI_ACP_DEBUG_LOG)
+├── stdout-writer.ts         Extracted stdout write helper (testable, side-effect-free)
 ├── backend/
-│   └── config.ts            BackendConfig abstraction (gsd vs pi paths, spawn args, auto-detection)
+│   └── config.ts            BackendConfig abstraction (gsd vs pi paths, spawn args, auto-detection, cached)
 ├── acp/
-│   ├── agent.ts             ACP protocol handler (~430 lines)
-│   ├── session.ts           Session lifecycle, turn queue, typed PiRpcEvent handling
+│   ├── agent.ts             ACP protocol handler (~430 lines), post-spawn try/catch cleanup
+│   ├── session.ts           Session lifecycle, turn queue, typed PiRpcEvent handling, settleAllPending on crash
 │   ├── session-store.ts     sessionId → sessionFile JSON persistence (single instance)
-│   ├── session-lifecycle.ts Session start/stop orchestration
-│   ├── paths.ts             Debug log path resolution
+│   ├── session-lifecycle.ts Session start/stop orchestration, safe fallback sessionUpdate
+│   ├── paths.ts             Debug log path resolution (per-PID, per-day)
+│   ├── mcp-config.ts        MCP configuration
 │   ├── pi-sessions.ts       Async session listing (cwd-scoped for gsd)
 │   ├── pi-settings.ts       Settings merge (global + project)
 │   ├── pi-commands.ts       get_commands → ACP tool conversion
@@ -40,9 +42,9 @@ src/
 │       ├── pi-tools.ts      Typed PiToolResult → text extraction
 │       └── prompt.ts        ACP prompt → pi message conversion
 ├── pi-rpc/
-│   ├── process.ts           Subprocess spawn, NDJSON RPC, PiRpcEvent discriminated union (12 types)
+│   ├── process.ts           Subprocess spawn, NDJSON RPC, PiRpcEvent discriminated union (12 types), per-handler try/catch, array snapshot iteration
 │   ├── command.ts           Executable resolution (platform-aware)
-│   └── schemas.ts           Zod schemas for RPC responses
+│   └── schemas.ts           Zod schemas for RPC responses (sessionId in StateData)
 └── pi-auth/
     └── status.ts            Auth configuration detection
 ```
@@ -50,10 +52,11 @@ src/
 ## Data Flow
 
 1. **Inbound**: ACP client sends JSON-RPC request over stdin → `index.ts` → `AgentSideConnection` → `PiAcpAgent` method dispatch
-2. **Session creation**: `agent.ts newSession()` → auth check → `PiRpcProcess.spawn()` → handshake → session registered
+2. **Session creation**: `agent.ts newSession()` → auth check → `PiRpcProcess.spawn()` → handshake → session registered (post-spawn wrapped in try/catch → sessions.close() on failure)
 3. **Prompt flow**: `agent.ts prompt()` → slash command expansion → `session.prompt()` → turn queue → `proc.prompt()` → NDJSON RPC to subprocess
 4. **Event stream**: Subprocess stdout → readline NDJSON → `PiRpcEvent` (typed discriminated union) → `session.handlePiEvent()` → `conn.sessionUpdate()` → ACP client
-5. **Shutdown**: stdin close / SIGINT/SIGTERM → `acpAgent.dispose()` → all sessions disposed → subprocess killed
+5. **Crash recovery**: Subprocess exits unexpectedly → `settleAllPending('error')` resolves all in-flight prompts → no hanging promises
+6. **Shutdown**: stdin close / SIGINT/SIGTERM → idempotent shutdown guard → `acpAgent.dispose()` → all sessions disposed → subprocess killed
 
 ## Key Constraints
 
@@ -62,6 +65,7 @@ src/
 - **Dual backend** — must work with both `gsd` and `pi` without breaking either
 - **No client-side delegation** — pi executes locally, no FS/terminal delegation to ACP client
 - **Node 20+**, TypeScript, ES modules
+- **Zero as-any casts** in src/ — full type safety via Zod schemas, SDK union narrowing, proper interfaces
 
 ## Tech Stack
 
@@ -71,3 +75,4 @@ src/
 - **Validation**: `zod` — RPC response schema parsing
 - **Build**: `tsup` (bundler), `tsx` (dev/test runner)
 - **CI**: GitHub Actions — typecheck + lint + test in parallel
+- **Tests**: 134 tests covering timeout, concurrent RPC, dispose, crash recovery, queue overflow, backend detection, semver comparison

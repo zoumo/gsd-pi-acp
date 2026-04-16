@@ -1,45 +1,64 @@
 # Changelog
 
-## M003: Code Hygiene: Dead Code, Type Safety, Async I/O (2026-04-07)
+All notable changes since the upstream pi-acp 0.0.24 baseline.
 
-### S01: Dead Code Removal
-- Removed 30+ dead exports, all legacy wrapper functions, agent.ts.bak, and unused imports
-- 1086 lines eliminated with zero behavior change
-- Key files: `src/acp/pi-sessions.ts`, `src/acp/pi-settings.ts`, `src/pi-auth/status.ts`, `src/backend/config.ts`, `src/pi-rpc/schemas.ts`, `src/acp/slash-commands.ts`, `src/acp/paths.ts`
+## Unreleased (since 0.0.24)
 
-### S02: Pi RPC Event Types & as-any Reduction
-- Defined PiRpcEvent discriminated union (12 event types) + PiToolResult interface
-- Project-wide `as any`: 51 → 12 (session.ts: 21→1, pi-tools.ts: 7→0)
-- Key files: `src/pi-rpc/process.ts`, `src/acp/session.ts`, `src/acp/translate/pi-tools.ts`
+### Dual Backend Support
+- **BackendConfig abstraction** — unified interface for gsd vs pi backend differences (paths, spawn args, shell usage, agent directory)
+- **Auto-detection** — gsd first (which/where check), pi fallback, `PI_ACP_PI_COMMAND` env override
+- **Cwd-scoped sessions** — gsd sessions in `~/.gsd/sessions/<cwd-hash>/`, pi sessions flat in `~/.pi/agent/sessions/`
+- **Backend-specific spawn args** — `--no-themes` omitted for gsd, `quietStartup` always true for gsd
+- **Package renamed** — `pi-acp` → `gsd-pi-acp`
 
-### S03: Async I/O in Session Loading
-- Converted pi-sessions.ts from sync to async fs/promises with FileHandle API
-- readFileSync kept in session.ts for event-ordering correctness
-- Key files: `src/acp/pi-sessions.ts`, `src/acp/agent.ts`
+### Robustness & Crash Recovery
+- **RPC timeout** — 30s default (configurable via `PI_ACP_RPC_TIMEOUT_MS`), settled-guard prevents double-resolve
+- **Hang-free exit** — `settleAllPending('error')` on process_exit so subprocess crashes resolve in-flight prompts instead of hanging forever
+- **Post-spawn cleanup** — try/catch wraps post-spawn operations in agent.ts, calls `sessions.close()` on failure to prevent subprocess leaks
+- **Event handler safety** — per-handler try/catch + array snapshot before iteration, so a throwing handler never blocks pending promise rejection
+- **Queue depth limit** — max 20 concurrent prompts (configurable via `PI_ACP_MAX_QUEUE_DEPTH`), rejects non-positive values
+- **Resource cleanup** — readline.close() in dispose(), editSnapshots.clear() on agent_end, unhandledRejection handler per session
+- **Idempotent shutdown** — boolean guard prevents concurrent shutdown races on SIGINT/SIGTERM
 
-## M002-bkli1x: Code Review Remediation Verification (2026-04-07)
+### Debug Logging
+- **Fire-and-forget logger** (`src/logger.ts`) — opt-in via `PI_ACP_DEBUG_LOG=1`, per-PID per-day log files (`debug-{pid}-{YYYY-MM-DD}.log`)
+- **Log path** — default `~/.gsd/gsd-pi-acp/debug-{pid}-{YYYY-MM-DD}.log`, override via `PI_ACP_DEBUG_LOG_PATH`
+- **Path validation** — rejects relative paths and path traversal (`..`)
+- **Subprocess stderr** — forwarded to debug log as `subprocess stderr: ...`
+- **Lifecycle events logged** — startup, backend detection, session lifecycle, RPC calls, errors, shutdown
 
-### S01: Code Review Remediation
-- Verified all four P1-P3 findings (NaN guard, stderr fallback, node:path isAbsolute, cached mkdir) already addressed in M001
-- No code changes needed — verification-only pass with 90 tests + grep assertions
+### Type Safety
+- **Zero `as any` casts** in src/ (down from 51+ in baseline)
+- **PiRpcEvent discriminated union** — 12 typed event types replace untyped event handling
+- **PiToolResult interface** — typed tool result extraction in pi-tools.ts
+- **Zod schemas** (`src/pi-rpc/schemas.ts`) — runtime validation for getState, getAvailableModels, getMessages, getCommands, getSessionStats
+- **sessionId added to StateData** — enables typed access without casts
+- **SDK ContentBlock narrowing** — proper union narrowing instead of `as any` for prompt.ts resource handling
 
-## M001-ljn52j: Robust Dual Backend ACP Adapter (2026-04-03)
+### Architecture Refactor
+- **agent.ts decomposition** — 1356 → 563 lines (58% reduction), 6 modules extracted:
+  - `builtin-commands.ts` — /steering, /name commands
+  - `pkg-utils.ts` — package.json utilities
+  - `model-utils.ts` — thinking/model state helpers with Zod parsing
+  - `startup-info.ts` — startup metadata generation
+  - `slash-command-dispatcher.ts` — slash command expansion logic
+  - `schemas.ts` — Zod schemas for all RPC responses
+- **SessionStore dependency injection** — single instance passed from PiAcpAgent to SessionManager
+- **stdout-writer.ts** — extracted from index.ts for testable stdout writes
+- **session-lifecycle.ts** — session start/stop orchestration with safe fallback sessionUpdate
+- **Async I/O** — pi-sessions.ts converted from sync to async fs/promises with FileHandle API
+- **Dead code removal** — 1086 lines eliminated (30+ dead exports, legacy wrapper functions, agent.ts.bak)
+- **Backend command caching** — module-level cache for getBackendCommand() eliminates repeated spawnSync calls
+- **compareSemver** — handles pre-release versions correctly
 
-### S01: Core Robustness
-- RPC timeout (30s default, configurable), clean shutdown (no unsafe casts), queue depth limit (20), resource cleanup, debug logging
-- Key files: `src/pi-rpc/process.ts`, `src/acp/session.ts`, `src/logger.ts`, `src/acp/paths.ts`, `src/index.ts`
+### MCP Support
+- **MCP config injection** (`src/acp/mcp-config.ts`) — writes ACP-provided mcpServers into `<cwd>/.gsd/mcp.json`, merging with existing config (gsd backend only)
 
-### S02: Dual Backend Support
-- BackendConfig abstraction with auto-detection (gsd first, pi fallback)
-- Cwd-scoped sessions for gsd, package renamed to gsd-pi-acp
-- Key files: `src/backend/config.ts`, `src/acp/pi-sessions.ts`, `src/acp/pi-settings.ts`, `src/pi-rpc/command.ts`
-
-### S03: CI & Test Coverage
-- CI workflow: typecheck + lint + test in parallel on every push/PR
-- 20 new process.ts tests (timeout, concurrent, dispose, crash recovery), FakeChildProcess helper
-- Key files: `.github/workflows/ci.yml`, `test/unit/process-*.test.ts`, `test/helpers/fake-child.ts`
-
-### S04: Agent Decomposition & Zod Schemas
-- agent.ts: 1356 → 563 lines (58% reduction), 6 modules extracted
-- Zod schemas for all RPC responses, SessionStore dependency injection
-- Key files: `src/acp/agent.ts`, `src/pi-rpc/schemas.ts`, `src/acp/startup-info.ts`, `src/acp/slash-command-dispatcher.ts`, `src/acp/model-utils.ts`
+### CI & Testing
+- **CI workflow** (`.github/workflows/ci.yml`) — typecheck + lint + test in parallel on every push/PR
+- **134 tests** (up from ~20 in baseline):
+  - Process timeout (4), concurrent RPC (4), dispose (6), crash recovery (6)
+  - Queue overflow, post-spawn cleanup, session-process-crash (component tests)
+  - Backend command detection, max queue depth, semver comparison, stderr logging, session lifecycle fallback, merge-commands, stdout-destroyed
+- **FakeChildProcess** test helper — subprocess mocking without real spawns
+- **Test hygiene** — try/finally for env var cleanup, real imports instead of inline reimplementation, assert/strict in process tests
